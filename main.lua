@@ -418,15 +418,17 @@ local function runAutoPickup()
                 -- نگه داشتن دکمه E به مدت 1 ثانیه
                 simulateEPressHold()
                 
-                -- صبر برای جمع‌آوری
-                local t = 0
-                while part.Parent and t < PICKUP_WAIT do
-                    if not running then return end
-                    task.wait(0.1)
-                    t += 0.1
-                end
-                
-                task.wait(TIME_BETWEEN)
+                -- صبر برای جمع‌آوری و سپس بررسی آیتم بعدی
+                task.spawn(function()
+                    local t = 0
+                    while part.Parent and t < PICKUP_WAIT do
+                        if not running then return end
+                        task.wait(0.2)
+                        t += 0.2
+                    end
+                    -- وقتی جمع‌آوری انجام شد، به سراغ پارت بعدی برو
+                    task.wait(TIME_BETWEEN)
+                end)
             end
         end
     end
