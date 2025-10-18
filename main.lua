@@ -380,22 +380,19 @@ local function teleportTo(part)
     hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
 end
 
--- شبیه‌سازی فشار دادن کلید E و نگه داشتن آن به مدت 1 ثانیه
+-- شبیه‌سازی نگه داشتن کلید E به مدت 1 ثانیه
 local function simulateEPressHold()
     -- شبیه‌سازی فشردن کلید E
-    UserInputService.InputBegan:Fire({
-        KeyCode = Enum.KeyCode.E,
-        UserInputType = Enum.UserInputType.Keyboard
-    }, false)
-    
+    local input = Instance.new("InputObject", game)
+    input.KeyCode = Enum.KeyCode.E
+    input.UserInputType = Enum.UserInputType.Keyboard
+    input.InputBegan:Fire(input)  -- فشار دادن کلید E
+
     -- نگه داشتن کلید E به مدت 1 ثانیه
     task.wait(1)
 
     -- شبیه‌سازی رها کردن کلید E
-    UserInputService.InputEnded:Fire({
-        KeyCode = Enum.KeyCode.E,
-        UserInputType = Enum.UserInputType.Keyboard
-    }, false)
+    input.InputEnded:Fire(input) -- رها کردن کلید E
 end
 
 -- فرایند اصلی
@@ -439,4 +436,5 @@ local Toggle = PlayerTab:CreateToggle({
         end
     end,
 })
+
 
