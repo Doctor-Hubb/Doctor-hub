@@ -298,3 +298,24 @@ local Button = TelTab:CreateButton({
         end
     end,
 })
+
+
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local Button = TelTab:CreateButton({ 
+    Name = "Amlak-Shoghl",
+    Callback = function()
+        
+        local targetPosition = Vector3.new(-632, 6, 2195)  
+
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            
+            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
+            
+        else
+            warn("HumanoidRootPart پیدا نشد!")
+        end
+    end,
+})
