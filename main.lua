@@ -339,6 +339,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInput = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -348,11 +349,9 @@ local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
 local PICKUP_WAIT = 1.5
 local TIME_BETWEEN = 0.3
 local NEAR_THRESHOLD = 5
-local REMOTE_NAME = "RequestPickup" -- اگه بازی Remote خاصی داره اینجا بذار
 
 local running = false
 local targets = {}
-local remote = ReplicatedStorage:FindFirstChild(REMOTE_NAME)
 
 -- تابع جمع‌آوری همه آیتم‌ها
 local function gatherTargets()
@@ -373,53 +372,63 @@ end)
 
 -- تلپورت به پارت
 local function teleportTo(part)
-    if not part or not part:IsDescendantOf(Workspace) then return end
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    if not part or not part:IsDescendantOf(Workspace) then return false end
+    local char = LocalPlayer.Character
+    if not char then return false end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then return false end
+    
     hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
+    return true
 end
 
--- شبیه‌سازی نگه داشتن کلید E به مدت 1 ثانیه
+-- شبیه‌سازی صحیح نگه داشتن کلید E به مدت 1 ثانیه
 local function simulateEPressHold()
-    -- شبیه‌سازی فشردن کلید E
-    local input = Instance.new("InputObject", game)
-    input.KeyCode = Enum.KeyCode.E
-    input.UserInputType = Enum.UserInputType.Keyboard
-    -- شبیه‌سازی فشار دادن کلید E (InputBegan)
-    UserInputService.InputBegan:Fire(input)
-
-    -- نگه داشتن کلید E به مدت 1 ثانیه (در این مدت به صورت فعال باقی می‌ماند)
-    task.wait(1) -- نگه داشتن کلید به مدت 1 ثانیه
-
-    -- شبیه‌سازی رها کردن کلید E
-    UserInputService.InputEnded:Fire(input) -- رها کردن کلید E
+    -- فشار دادن کلید E
+    VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    -- نگه داشتن به مدت 1 ثانیه
+    task.wait(1)
+    -- رها کردن کلید E
+    VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
--- فرایند اصلی
+-- فرایند اصلی بهبود یافته
 local function runAutoPickup()
-    gatherTargets()
-
-    for _, part in ipairs(targets) do
-        if not running then break end
-        if not part.Parent then continue end
-
-        teleportTo(part)
-        task.wait(0.3)
-
-        if remote then
-            remote:FireServer(part)
-        else
-            simulateEPressHold() -- شبیه نگه داشتن E به مدت 1 ثانیه
+    while running do
+        gatherTargets()
+        
+        if #targets == 0 then
+            task.wait(1)
+            continue
         end
-
-        local t = 0
-        while part.Parent and t < PICKUP_WAIT do
-            if not running then return end
-            task.wait(0.2)
-            t += 0.2
+        
+        for i = #targets, 1, -1 do
+            if not running then break end
+            
+            local part = targets[i]
+            if not part or not part.Parent then
+                table.remove(targets, i)
+                continue
+            end
+            
+            -- تلپورت به آیتم
+            if teleportTo(part) then
+                task.wait(0.3)
+                
+                -- نگه داشتن دکمه E به مدت 1 ثانیه
+                simulateEPressHold()
+                
+                -- صبر برای جمع‌آوری
+                local t = 0
+                while part.Parent and t < PICKUP_WAIT do
+                    if not running then return end
+                    task.wait(0.2)
+                    t += 0.2
+                end
+                
+                task.wait(TIME_BETWEEN)
+            end
         end
-        task.wait(TIME_BETWEEN)
     end
 end
 
