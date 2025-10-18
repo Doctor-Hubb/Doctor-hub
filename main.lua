@@ -319,3 +319,119 @@ local Button = TelTab:CreateButton({
         end
     end,
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--=== تنظیمات سرویس‌ها ===--
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+--=== نام RemoteEvent برای درخواست pickup ===--
+local REMOTE_NAME = "RequestPickup"
+local remote = ReplicatedStorage:FindFirstChild(REMOTE_NAME) or Instance.new("RemoteEvent", ReplicatedStorage)
+remote.Name = REMOTE_NAME
+
+--=== تنظیمات عمومی ===--
+local TARGET_NAME = "P2"               -- اسم پارت‌هایی که باید بری سراغشون
+local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
+local PICKUP_WAIT = 1.5
+local TIME_BETWEEN = 0.3
+local NEAR_THRESHOLD = 4
+
+-- وضعیت روشن/خاموش بودن سیستم
+local running = false
+
+-- تابع برای جمع کردن همه Partهایی که اسمشون P2 هست
+local function gatherTargets()
+    local targets = {}
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
+            table.insert(targets, inst)
+        end
+    end
+    return targets
+end
+
+-- تلپورت به سمت هر Part
+local function teleportToPart(part)
+    if not part or not part:IsDescendantOf(Workspace) then return false end
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
+    return true
+end
+
+-- صبر کن تا پارت حذف بشه (یعنی برداشته شده)
+local function waitForPickup(part, timeout)
+    local elapsed = 0
+    while elapsed < (timeout or PICKUP_WAIT) do
+        if not running then return false end
+        if not part.Parent then return true end
+        task.wait(0.2)
+        elapsed += 0.2
+    end
+    return false
+end
+
+-- روند اصلی برای pickup همه P2‌ها
+local function runAutoPick()
+    local targets = gatherTargets()
+    if #targets == 0 then
+        warn("هیچ پارت با نام '"..TARGET_NAME.."' پیدا نشد.")
+        running = false
+        return
+    end
+
+    for _, part in ipairs(targets) do
+        if not running then break end
+        if not part.Parent then continue end
+
+        teleportToPart(part)
+        task.wait(0.3)
+
+        -- اگر Remote موجوده، درخواست به سرور بفرست
+        if remote then
+            remote:FireServer(part)
+        end
+
+        -- منتظر باش تا پارت حذف بشه
+        waitForPickup(part, PICKUP_WAIT)
+        task.wait(TIME_BETWEEN)
+    end
+
+    running = false
+end
+
+--=== Toggle در UI ===--
+local Toggle = TelTab:CreateToggle({
+    Name = "Auto Pickup P2",
+    CurrentValue = false,
+    Flag = "Toggle_AutoPickP2",
+    Callback = function(Value)
+        running = Value
+        if running then
+            task.spawn(runAutoPick)
+        else
+            print("AutoPickup متوقف شد.")
+        end
+    end,
+})
+
