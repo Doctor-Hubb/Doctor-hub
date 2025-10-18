@@ -39,6 +39,7 @@ local Window = Rayfield:CreateWindow({
 
 local PlayerTab = Window:CreateTab("Player", 4483362458) 
 local TelTab = Window:CreateTab("Teleport", 4483362458) 
+local FarmTab = Window:CreateTab("Teleport", 4483362458) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -435,10 +436,10 @@ local function runAutoPickup()
 end
 
 -- Toggle
-local Toggle = PlayerTab:CreateToggle({
-    Name = "Auto Pickup P2",
+local Toggle = FarmTab:CreateToggle({
+    Name = "Auto Farm Trash",
     CurrentValue = false,
-    Flag = "AutoPickupP2",
+    Flag = "Auto Farm Tras",
     Callback = function(Value)
         running = Value
         if running then
