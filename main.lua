@@ -349,9 +349,11 @@ local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
 local PICKUP_WAIT = 1.5
 local TIME_BETWEEN = 0.3
 local NEAR_THRESHOLD = 5
+local CHECK_INTERVAL = 0.5 -- فاصله چک کردن آیتم
 
 local running = false
 local targets = {}
+local currentTarget = nil
 
 -- تابع جمع‌آوری همه آیتم‌ها
 local function gatherTargets()
@@ -392,44 +394,73 @@ local function simulateEPressHold()
     VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
+-- ماندن کنار هدف فعلی تا زمانی که وجود داره
+local function stayWithTarget(part)
+    currentTarget = part
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    while running and currentTarget == part and part and part.Parent do
+        -- تلپورت به موقعیت هدف
+        hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
+        
+        -- فشار دادن دکمه E هر 2 ثانیه
+        simulateEPressHold()
+        
+        -- صبر قبل از چک مجدد
+        local waitTime = 0
+        while waitTime < 2 and running and currentTarget == part and part and part.Parent do
+            task.wait(0.2)
+            waitTime = waitTime + 0.2
+        end
+    end
+end
+
 -- فرایند اصلی بهبود یافته
 local function runAutoPickup()
     while running do
         gatherTargets()
         
         if #targets == 0 then
+            currentTarget = nil
             task.wait(1)
             continue
         end
         
-        for i = #targets, 1, -1 do
-            if not running then break end
-            
-            local part = targets[i]
-            if not part or not part.Parent then
-                table.remove(targets, i)
-                continue
-            end
-            
-            -- تلپورت به آیتم
-            if teleportTo(part) then
-                task.wait(0.3)
-                
-                -- نگه داشتن دکمه E به مدت 1 ثانیه
-                simulateEPressHold()
-                
-                -- صبر برای جمع‌آوری
-                local t = 0
-                while part.Parent and t < PICKUP_WAIT do
-                    if not running then return end
-                    task.wait(0.2)
-                    t += 0.2
+        -- پیدا کردن هدف جدید اگر هدف فعلی وجود نداره
+        if not currentTarget or not currentTarget.Parent then
+            for i = #targets, 1, -1 do
+                local part = targets[i]
+                if part and part.Parent then
+                    currentTarget = part
+                    break
+                else
+                    table.remove(targets, i)
                 end
-                
-                task.wait(TIME_BETWEEN)
             end
         end
+        
+        -- اگر هدف معتبری پیدا شد، کنارش بمون
+        if currentTarget and currentTarget.Parent then
+            print("🎯 ماندن کنار آیتم: " .. tostring(currentTarget.Position))
+            stayWithTarget(currentTarget)
+        else
+            currentTarget = nil
+            task.wait(0.5)
+        end
+        
+        task.wait(0.1)
     end
+end
+
+-- توقف اتو پیکاپ
+local function stopAutoPickup()
+    running = false
+    currentTarget = nil
+    print("⛔ AutoPickup متوقف شد.")
 end
 
 -- Toggle
@@ -440,12 +471,22 @@ local Toggle = PlayerTab:CreateToggle({
     Callback = function(Value)
         running = Value
         if running then
+            currentTarget = nil
             task.spawn(runAutoPickup)
+            print("✅ AutoPickup شروع شد")
         else
-            print("⛔ AutoPickup متوقف شد.")
+            stopAutoPickup()
         end
     end,
 })
+
+-- وقتی کاراکتر تغییر کرد
+LocalPlayer.CharacterAdded:Connect(function()
+    if running then
+        task.wait(2) -- صبر برای لود شدن کاراکتر
+        currentTarget = nil
+    end
+end)
 
 
 
