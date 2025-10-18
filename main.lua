@@ -335,103 +335,102 @@ local Button = TelTab:CreateButton({
 
 
 
---=== تنظیمات سرویس‌ها ===--
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 
---=== نام RemoteEvent برای درخواست pickup ===--
-local REMOTE_NAME = "RequestPickup"
-local remote = ReplicatedStorage:FindFirstChild(REMOTE_NAME) or Instance.new("RemoteEvent", ReplicatedStorage)
-remote.Name = REMOTE_NAME
-
---=== تنظیمات عمومی ===--
-local TARGET_NAME = "P2"               -- اسم پارت‌هایی که باید بری سراغشون
+-- تنظیمات
+local TARGET_NAME = "P2"
 local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
 local PICKUP_WAIT = 1.5
 local TIME_BETWEEN = 0.3
-local NEAR_THRESHOLD = 4
+local NEAR_THRESHOLD = 5
+local REMOTE_NAME = "RequestPickup" -- اگه بازی Remote خاصی داره اینجا بذار
 
--- وضعیت روشن/خاموش بودن سیستم
 local running = false
+local targets = {}
+local remote = ReplicatedStorage:FindFirstChild(REMOTE_NAME)
 
--- تابع برای جمع کردن همه Partهایی که اسمشون P2 هست
+-- تابع جمع‌آوری همه آیتم‌ها
 local function gatherTargets()
-    local targets = {}
+    targets = {}
     for _, inst in ipairs(Workspace:GetDescendants()) do
         if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
             table.insert(targets, inst)
         end
     end
-    return targets
 end
 
--- تلپورت به سمت هر Part
-local function teleportToPart(part)
-    if not part or not part:IsDescendantOf(Workspace) then return false end
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
+-- وقتی پارت جدید اسپاون شد
+Workspace.DescendantAdded:Connect(function(desc)
+    if running and desc:IsA("BasePart") and desc.Name == TARGET_NAME then
+        table.insert(targets, desc)
+    end
+end)
 
+-- تلپورت به پارت
+local function teleportTo(part)
+    if not part or not part:IsDescendantOf(Workspace) then return end
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
     hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
-    return true
 end
 
--- صبر کن تا پارت حذف بشه (یعنی برداشته شده)
-local function waitForPickup(part, timeout)
-    local elapsed = 0
-    while elapsed < (timeout or PICKUP_WAIT) do
-        if not running then return false end
-        if not part.Parent then return true end
-        task.wait(0.2)
-        elapsed += 0.2
-    end
-    return false
+-- شبیه‌سازی فشار دادن کلید E
+local function simulateEPress()
+    UserInputService.InputBegan:Fire({
+        KeyCode = Enum.KeyCode.E,
+        UserInputType = Enum.UserInputType.Keyboard
+    }, false)
+    task.wait(0.2)
+    UserInputService.InputEnded:Fire({
+        KeyCode = Enum.KeyCode.E,
+        UserInputType = Enum.UserInputType.Keyboard
+    }, false)
 end
 
--- روند اصلی برای pickup همه P2‌ها
-local function runAutoPick()
-    local targets = gatherTargets()
-    if #targets == 0 then
-        warn("هیچ پارت با نام '"..TARGET_NAME.."' پیدا نشد.")
-        running = false
-        return
-    end
+-- فرایند اصلی
+local function runAutoPickup()
+    gatherTargets()
 
     for _, part in ipairs(targets) do
         if not running then break end
         if not part.Parent then continue end
 
-        teleportToPart(part)
+        teleportTo(part)
         task.wait(0.3)
 
-        -- اگر Remote موجوده، درخواست به سرور بفرست
         if remote then
             remote:FireServer(part)
+        else
+            simulateEPress() -- شبیه نگه داشتن E
         end
 
-        -- منتظر باش تا پارت حذف بشه
-        waitForPickup(part, PICKUP_WAIT)
+        local t = 0
+        while part.Parent and t < PICKUP_WAIT do
+            if not running then return end
+            task.wait(0.2)
+            t += 0.2
+        end
         task.wait(TIME_BETWEEN)
     end
-
-    running = false
 end
 
---=== Toggle در UI ===--
-local Toggle = TelTab:CreateToggle({
+-- Toggle
+local Toggle = PlayerTab:CreateToggle({
     Name = "Auto Pickup P2",
     CurrentValue = false,
-    Flag = "Toggle_AutoPickP2",
+    Flag = "AutoPickupP2",
     Callback = function(Value)
         running = Value
         if running then
-            task.spawn(runAutoPick)
+            task.spawn(runAutoPickup)
         else
-            print("AutoPickup متوقف شد.")
+            print("⛔ AutoPickup متوقف شد.")
         end
     end,
 })
-
