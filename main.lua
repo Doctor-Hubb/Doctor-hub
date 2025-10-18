@@ -419,7 +419,7 @@ local function runAutoPick()
 end
 
 -- اتصال به یک Toggle مشابه قالب تو
-local Toggle = Tab:CreateToggle({
+local Toggle = TelTab:CreateToggle({
     Name = "Admin AutoPickup P2",
     CurrentValue = false,
     Flag = "AdminAutoPickupP2",
