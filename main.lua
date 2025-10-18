@@ -349,7 +349,6 @@ local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
 local PICKUP_WAIT = 1.5
 local TIME_BETWEEN = 0.3
 local NEAR_THRESHOLD = 5
-local MAX_WAIT_TIME = 10 -- حداکثر زمان انتظار برای یک آیتم
 
 local running = false
 local targets = {}
@@ -393,33 +392,6 @@ local function simulateEPressHold()
     VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
--- ماندن کنار یک آیتم تا زمانی که جمع بشه
-local function stayWithItem(part)
-    local startTime = tick()
-    
-    while running and part and part.Parent do
-        -- اگر زمان زیادی گذشت، برو آیتم بعدی
-        if tick() - startTime > MAX_WAIT_TIME then
-            print("⏰ زمان انتظار برای آیتم تمام شد، رفتن به آیتم بعدی")
-            break
-        end
-        
-        -- آپدیت موقعیت (اگر آیتم حرکت کرد)
-        teleportTo(part)
-        task.wait(0.1)
-        
-        -- فشار دادن E
-        simulateEPressHold()
-        
-        -- صبر بین فشار دادن E
-        local waitTime = 0
-        while waitTime < 2 and running and part and part.Parent do
-            task.wait(0.2)
-            waitTime += 0.2
-        end
-    end
-end
-
 -- فرایند اصلی بهبود یافته
 local function runAutoPickup()
     while running do
@@ -439,13 +411,23 @@ local function runAutoPickup()
                 continue
             end
             
-            print("🎯 رفتن به آیتم: " .. tostring(part.Position))
-            
-            -- ماندن کنار این آیتم تا زمانی که جمع بشه
-            stayWithItem(part)
-            
-            -- وقتی آیتم جمع شد، برو آیتم بعدی
-            task.wait(TIME_BETWEEN)
+            -- تلپورت به آیتم
+            if teleportTo(part) then
+                task.wait(0.3)
+                
+                -- نگه داشتن دکمه E به مدت 1 ثانیه
+                simulateEPressHold()
+                
+                -- صبر برای جمع‌آوری
+                local t = 0
+                while part.Parent and t < PICKUP_WAIT do
+                    if not running then return end
+                    task.wait(0.1)
+                    t += 0.1
+                end
+                
+                task.wait(TIME_BETWEEN)
+            end
         end
     end
 end
@@ -459,7 +441,6 @@ local Toggle = PlayerTab:CreateToggle({
         running = Value
         if running then
             task.spawn(runAutoPickup)
-            print("✅ AutoPickup شروع شد")
         else
             print("⛔ AutoPickup متوقف شد.")
         end
