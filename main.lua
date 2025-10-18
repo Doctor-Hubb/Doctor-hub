@@ -386,13 +386,14 @@ local function simulateEPressHold()
     local input = Instance.new("InputObject", game)
     input.KeyCode = Enum.KeyCode.E
     input.UserInputType = Enum.UserInputType.Keyboard
-    input.InputBegan:Fire(input)  -- فشار دادن کلید E
+    -- شبیه‌سازی فشار دادن کلید E (InputBegan)
+    UserInputService.InputBegan:Fire(input)
 
-    -- نگه داشتن کلید E به مدت 1 ثانیه
-    task.wait(1)
+    -- نگه داشتن کلید E به مدت 1 ثانیه (در این مدت به صورت فعال باقی می‌ماند)
+    task.wait(1) -- نگه داشتن کلید به مدت 1 ثانیه
 
     -- شبیه‌سازی رها کردن کلید E
-    input.InputEnded:Fire(input) -- رها کردن کلید E
+    UserInputService.InputEnded:Fire(input) -- رها کردن کلید E
 end
 
 -- فرایند اصلی
@@ -436,5 +437,6 @@ local Toggle = PlayerTab:CreateToggle({
         end
     end,
 })
+
 
 
