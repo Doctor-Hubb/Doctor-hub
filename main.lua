@@ -426,6 +426,12 @@ local function runAutoPickup()
                     t += 0.2
                 end
                 
+                -- اضافه کردن شرط برای صبر کردن تا وقتی که پارت از بین بره
+                while part.Parent do
+                    task.wait(0.2)  -- منتظر بمانید تا پارت از بین برود
+                end
+                
+                -- وقتی پارت دیستروی شد، به سراغ پارت بعدی برو
                 task.wait(TIME_BETWEEN)
             end
         end
@@ -446,6 +452,7 @@ local Toggle = PlayerTab:CreateToggle({
         end
     end,
 })
+
 
 
 
