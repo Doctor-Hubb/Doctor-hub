@@ -32,7 +32,7 @@ local Window = Rayfield:CreateWindow({
       Note = "No method of obtaining the key is provided", 
       FileName = "Key", 
       SaveKey = false, 
-      GrabKeyFromSite = false, 
+      GrabKeyFromSite = true, 
       Key = {"kir"} 
    }
 })
