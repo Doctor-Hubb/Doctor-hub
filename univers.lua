@@ -31,13 +31,15 @@ local Window = Rayfield:CreateWindow({
       Subtitle = "Key System",
       Note = "No method of obtaining the key is provided", 
       FileName = "Key", 
-      SaveKey = false, 
+      SaveKey = true, 
       GrabKeyFromSite = false, 
-      Key = {"niggers"} 
+      Key = {"nigga"} 
    }
 })
 
 local PlayerTab = Window:CreateTab("Player", 4483362458) 
+local TelTab = Window:CreateTab("Teleport", 4483362458) 
+local FarmTab = Window:CreateTab("Farm", 4483362458) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -249,4 +251,3 @@ local Slider = PlayerTab:CreateSlider({
       humanoid.JumpPower = Value
    end,
 })
-
