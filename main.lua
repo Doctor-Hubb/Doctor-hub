@@ -39,7 +39,7 @@ local Window = Rayfield:CreateWindow({
 
 local PlayerTab = Window:CreateTab("Player", 4483362458) 
 local TelTab = Window:CreateTab("Teleport", 4483362458) 
-local FarmTab = Window:CreateTab("Teleport", 4483362458) 
+local FarmTab = Window:CreateTab("Farm", 4483362458) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -437,7 +437,7 @@ end
 
 -- Toggle
 local Toggle = FarmTab:CreateToggle({
-    Name = "Auto Farm Trash",
+    Name = "Auto Farm Trash(Aval Roftegar Shavid)",
     CurrentValue = false,
     Flag = "Auto Farm Tras",
     Callback = function(Value)
