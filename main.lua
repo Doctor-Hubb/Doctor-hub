@@ -481,7 +481,7 @@ local LocalPlayer = Players.LocalPlayer
 -- تنظیمات
 local TARGET_NAME = "P2"
 local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
-local TIME_BETWEEN = 0.3
+local TIME_BETWEEN = 0.1 -- کاهش به 0.1 ثانیه
 
 local running = false
 local targets = {}
@@ -543,38 +543,17 @@ end
 local function simulateEClick()
     -- فشار دادن و رها کردن سریع کلید E
     VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    task.wait(0.05) -- تأخیر بسیار کوتاه
+    task.wait(0.01) -- تأخیر بسیار کوتاه‌تر
     VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
--- ماندن کنار یک آیتم تا زمانی که جمع بشه
-local function collectItem(part)
-    local lastClick = 0
-    local CLICK_INTERVAL = 0.5 -- هر 0.5 ثانیه کلیک کن
-    
-    while running and part and part.Parent do
-        local now = tick()
-        
-        -- آپدیت موقعیت
-        teleportTo(part)
-        
-        -- کلیک E در بازه‌های زمانی
-        if now - lastClick >= CLICK_INTERVAL then
-            simulateEClick()
-            lastClick = now
-        end
-        
-        task.wait(0.1)
-    end
-end
-
--- فرایند اصلی بهبود یافته
+-- فرایند اصلی سریع
 local function runAutoPickup()
     while running do
         gatherTargets()
         
         if #targets == 0 then
-            task.wait(0.5)
+            task.wait(0.2)
             continue
         end
         
@@ -586,7 +565,7 @@ local function runAutoPickup()
         end
         
         if #targets == 0 then
-            task.wait(0.5)
+            task.wait(0.2)
             continue
         end
         
@@ -603,20 +582,35 @@ local function runAutoPickup()
             end
         end
         
-        -- انتخاب نزدیک‌ترین آیتم
-        local closestPart = targets[1]
-        
-        if closestPart and closestPart.Parent then
-            print("🎯 جمع‌آوری آیتم: " .. tostring(closestPart.Position))
+        -- پردازش همه آیتم‌ها به سرعت
+        for i = 1, #targets do
+            if not running then break end
             
-            -- ماندن کنار این آیتم تا زمانی که جمع بشه
-            collectItem(closestPart)
+            local part = targets[i]
+            if not part or not part.Parent then
+                continue
+            end
             
-            -- وقتی آیتم جمع شد، کمی صبر کن
-            task.wait(TIME_BETWEEN)
-        else
-            task.wait(0.1)
+            -- تلپورت به آیتم
+            if teleportTo(part) then
+                -- چند بار کلیک E (برای اطمینان)
+                for j = 1, 3 do
+                    if not part or not part.Parent then break end
+                    simulateEClick()
+                    task.wait(0.05) -- تأخیر بسیار کم بین کلیک‌ها
+                end
+                
+                -- اگر آیتم هنوز وجود داره، یعنی جمع نشده، برو بعدی
+                if part and part.Parent then
+                    task.wait(TIME_BETWEEN)
+                else
+                    -- اگر آیتم جمع شد، بدون تأخیر برو بعدی
+                    break
+                end
+            end
         end
+        
+        task.wait(0.05) -- تأخیر کم بین چرخه‌ها
     end
 end
 
