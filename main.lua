@@ -470,3 +470,129 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local VirtualInput = game:GetService("VirtualInputManager")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- === تنظیمات ===
+local TARGET_NAME = "P2"
+local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
+local PICKUP_WAIT = 1.5
+local TIME_BETWEEN = 0.3
+local running = false
+local targets = {}
+
+-------------------------------------------------
+-- 📌 بخش ۱: صفر کردن HoldDuration برای تمام ProximityPrompt‌ها
+-------------------------------------------------
+
+local function makePromptsInstant()
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("ProximityPrompt") and obj.Parent and obj.Parent.Name == TARGET_NAME then
+			obj.HoldDuration = 0
+		end
+	end
+
+	Workspace.DescendantAdded:Connect(function(desc)
+		if desc:IsA("ProximityPrompt") and desc.Parent and desc.Parent.Name == TARGET_NAME then
+			desc.HoldDuration = 0
+		end
+	end)
+end
+
+-------------------------------------------------
+-- 📌 بخش ۲: جمع‌آوری P2 و کلیک سریع E
+-------------------------------------------------
+
+-- پیدا کردن تمام آیتم‌ها
+local function gatherTargets()
+	targets = {}
+	for _, inst in ipairs(Workspace:GetDescendants()) do
+		if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
+			table.insert(targets, inst)
+		end
+	end
+end
+
+-- اگر آیتم جدید ساخته شد
+Workspace.DescendantAdded:Connect(function(desc)
+	if running and desc:IsA("BasePart") and desc.Name == TARGET_NAME then
+		table.insert(targets, desc)
+	end
+end)
+
+-- تلپورت کردن بازیکن به بالای آیتم
+local function teleportTo(part)
+	if not part or not part:IsDescendantOf(Workspace) then return false end
+	local char = LocalPlayer.Character
+	if not char then return false end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+	hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
+	return true
+end
+
+-- فقط کلیک E (بدون نگه داشتن)
+local function pressEOnce()
+	VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+	task.wait(0.05) -- خیلی کوتاه، مثل یک کلیک
+	VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end
+
+-- لوپ اصلی AutoPickup
+local function runAutoPickup()
+	makePromptsInstant() -- اول مطمئن شو promptها فوری شدن
+
+	while running do
+		gatherTargets()
+
+		if #targets == 0 then
+			task.wait(1)
+			continue
+		end
+
+		for i = #targets, 1, -1 do
+			if not running then break end
+			local part = targets[i]
+			if not part or not part.Parent then
+				table.remove(targets, i)
+				continue
+			end
+
+			-- تلپورت و جمع‌آوری
+			if teleportTo(part) then
+				task.wait(0.2)
+				pressEOnce()
+
+				-- صبر کن تا آیتم برداشته بشه یا حذف بشه
+				local t = 0
+				while part.Parent and t < PICKUP_WAIT and running do
+					task.wait(0.2)
+					t += 0.2
+				end
+
+				task.wait(TIME_BETWEEN)
+			end
+		end
+	end
+end
+
+-------------------------------------------------
+-- 📌 بخش ۳: Toggle رابط کاربری
+-------------------------------------------------
+local Toggle = FarmTab:CreateToggle({
+	Name = "Auto Farm Trash (P2 Collector Instant)",
+	CurrentValue = false,
+	Flag = "AutoFarmTrashInstant",
+	Callback = function(Value)
+		running = Value
+		if running then
+			print("✅ Auto Farm فعال شد")
+			task.spawn(runAutoPickup)
+		else
+			print("⛔ Auto Farm متوقف شد")
+		end
+	end,
+})
