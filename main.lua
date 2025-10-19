@@ -345,15 +345,15 @@ local VirtualInput = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
--- تنظیمات
+
 local TARGET_NAME = "P2"
 local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
-local TIME_BETWEEN = 0.1 -- کاهش به 0.1 ثانیه
+local TIME_BETWEEN = 0.1 
 
 local running = false
 local targets = {}
 
--- بخش اول: تنظیم ProximityPrompt برای کلیک فوری
+
 local INSTANT_HOLD = 0
 
 local function applyToPrompt(prompt)
@@ -363,21 +363,21 @@ local function applyToPrompt(prompt)
     end)
 end
 
--- اعمال روی همه پرامپت‌های موجود
+
 for _, obj in ipairs(Workspace:GetDescendants()) do
     if obj:IsA("ProximityPrompt") then
         applyToPrompt(obj)
     end
 end
 
--- وقتی پرامپت جدید اضافه شد، فوراً مقدارش رو عوض کن
+
 Workspace.DescendantAdded:Connect(function(desc)
     if desc:IsA("ProximityPrompt") then
         applyToPrompt(desc)
     end
 end)
 
--- تابع جمع‌آوری همه آیتم‌ها
+
 local function gatherTargets()
     targets = {}
     for _, inst in ipairs(Workspace:GetDescendants()) do
@@ -387,14 +387,14 @@ local function gatherTargets()
     end
 end
 
--- وقتی پارت جدید اسپاون شد
+
 Workspace.DescendantAdded:Connect(function(desc)
     if running and desc:IsA("BasePart") and desc.Name == TARGET_NAME then
         table.insert(targets, desc)
     end
 end)
 
--- تلپورت به پارت
+
 local function teleportTo(part)
     if not part or not part:IsDescendantOf(Workspace) then return false end
     local char = LocalPlayer.Character
@@ -406,15 +406,15 @@ local function teleportTo(part)
     return true
 end
 
--- شبیه‌سازی کلیک E (بدون نگه داشتن)
+
 local function simulateEClick()
-    -- فشار دادن و رها کردن سریع کلید E
+    
     VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    task.wait(0.01) -- تأخیر بسیار کوتاه‌تر
+    task.wait(0.01) 
     VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
--- فرایند اصلی سریع
+
 local function runAutoPickup()
     while running do
         gatherTargets()
@@ -424,7 +424,7 @@ local function runAutoPickup()
             continue
         end
         
-        -- پاک کردن آیتم‌های از بین رفته
+       
         for i = #targets, 1, -1 do
             if not targets[i] or not targets[i].Parent then
                 table.remove(targets, i)
@@ -436,7 +436,7 @@ local function runAutoPickup()
             continue
         end
         
-        -- مرتب کردن بر اساس فاصله (نزدیک‌ترین اول)
+        
         local char = LocalPlayer.Character
         if char then
             local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -449,7 +449,7 @@ local function runAutoPickup()
             end
         end
         
-        -- پردازش همه آیتم‌ها به سرعت
+       
         for i = 1, #targets do
             if not running then break end
             
@@ -458,26 +458,26 @@ local function runAutoPickup()
                 continue
             end
             
-            -- تلپورت به آیتم
+            
             if teleportTo(part) then
-                -- چند بار کلیک E (برای اطمینان)
+                
                 for j = 1, 3 do
                     if not part or not part.Parent then break end
                     simulateEClick()
-                    task.wait(0.05) -- تأخیر بسیار کم بین کلیک‌ها
+                    task.wait(0.05) 
                 end
                 
-                -- اگر آیتم هنوز وجود داره، یعنی جمع نشده، برو بعدی
+                
                 if part and part.Parent then
                     task.wait(TIME_BETWEEN)
                 else
-                    -- اگر آیتم جمع شد، بدون تأخیر برو بعدی
+                   
                     break
                 end
             end
         end
         
-        task.wait(0.05) -- تأخیر کم بین چرخه‌ها
+        task.wait(0.05) 
     end
 end
 
