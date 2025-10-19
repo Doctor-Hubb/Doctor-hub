@@ -471,128 +471,167 @@ local Toggle = FarmTab:CreateToggle({
 
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInput = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
--- === تنظیمات ===
+-- تنظیمات
 local TARGET_NAME = "P2"
 local TELEPORT_OFFSET = Vector3.new(0, 3, 0)
-local PICKUP_WAIT = 1.5
 local TIME_BETWEEN = 0.3
+
 local running = false
 local targets = {}
 
--------------------------------------------------
--- 📌 بخش ۱: صفر کردن HoldDuration برای تمام ProximityPrompt‌ها
--------------------------------------------------
+-- بخش اول: تنظیم ProximityPrompt برای کلیک فوری
+local INSTANT_HOLD = 0
 
-local function makePromptsInstant()
-	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("ProximityPrompt") and obj.Parent and obj.Parent.Name == TARGET_NAME then
-			obj.HoldDuration = 0
-		end
-	end
-
-	Workspace.DescendantAdded:Connect(function(desc)
-		if desc:IsA("ProximityPrompt") and desc.Parent and desc.Parent.Name == TARGET_NAME then
-			desc.HoldDuration = 0
-		end
-	end)
+local function applyToPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+    pcall(function()
+        prompt.HoldDuration = INSTANT_HOLD
+    end)
 end
 
--------------------------------------------------
--- 📌 بخش ۲: جمع‌آوری P2 و کلیک سریع E
--------------------------------------------------
-
--- پیدا کردن تمام آیتم‌ها
-local function gatherTargets()
-	targets = {}
-	for _, inst in ipairs(Workspace:GetDescendants()) do
-		if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
-			table.insert(targets, inst)
-		end
-	end
+-- اعمال روی همه پرامپت‌های موجود
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj:IsA("ProximityPrompt") then
+        applyToPrompt(obj)
+    end
 end
 
--- اگر آیتم جدید ساخته شد
+-- وقتی پرامپت جدید اضافه شد، فوراً مقدارش رو عوض کن
 Workspace.DescendantAdded:Connect(function(desc)
-	if running and desc:IsA("BasePart") and desc.Name == TARGET_NAME then
-		table.insert(targets, desc)
-	end
+    if desc:IsA("ProximityPrompt") then
+        applyToPrompt(desc)
+    end
 end)
 
--- تلپورت کردن بازیکن به بالای آیتم
+-- تابع جمع‌آوری همه آیتم‌ها
+local function gatherTargets()
+    targets = {}
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
+            table.insert(targets, inst)
+        end
+    end
+end
+
+-- وقتی پارت جدید اسپاون شد
+Workspace.DescendantAdded:Connect(function(desc)
+    if running and desc:IsA("BasePart") and desc.Name == TARGET_NAME then
+        table.insert(targets, desc)
+    end
+end)
+
+-- تلپورت به پارت
 local function teleportTo(part)
-	if not part or not part:IsDescendantOf(Workspace) then return false end
-	local char = LocalPlayer.Character
-	if not char then return false end
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then return false end
-	hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
-	return true
+    if not part or not part:IsDescendantOf(Workspace) then return false end
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    hrp.CFrame = CFrame.new(part.Position + TELEPORT_OFFSET)
+    return true
 end
 
--- فقط کلیک E (بدون نگه داشتن)
-local function pressEOnce()
-	VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-	task.wait(0.05) -- خیلی کوتاه، مثل یک کلیک
-	VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+-- شبیه‌سازی کلیک E (بدون نگه داشتن)
+local function simulateEClick()
+    -- فشار دادن و رها کردن سریع کلید E
+    VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(0.05) -- تأخیر بسیار کوتاه
+    VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
--- لوپ اصلی AutoPickup
+-- ماندن کنار یک آیتم تا زمانی که جمع بشه
+local function collectItem(part)
+    local lastClick = 0
+    local CLICK_INTERVAL = 0.5 -- هر 0.5 ثانیه کلیک کن
+    
+    while running and part and part.Parent do
+        local now = tick()
+        
+        -- آپدیت موقعیت
+        teleportTo(part)
+        
+        -- کلیک E در بازه‌های زمانی
+        if now - lastClick >= CLICK_INTERVAL then
+            simulateEClick()
+            lastClick = now
+        end
+        
+        task.wait(0.1)
+    end
+end
+
+-- فرایند اصلی بهبود یافته
 local function runAutoPickup()
-	makePromptsInstant() -- اول مطمئن شو promptها فوری شدن
-
-	while running do
-		gatherTargets()
-
-		if #targets == 0 then
-			task.wait(1)
-			continue
-		end
-
-		for i = #targets, 1, -1 do
-			if not running then break end
-			local part = targets[i]
-			if not part or not part.Parent then
-				table.remove(targets, i)
-				continue
-			end
-
-			-- تلپورت و جمع‌آوری
-			if teleportTo(part) then
-				task.wait(0.2)
-				pressEOnce()
-
-				-- صبر کن تا آیتم برداشته بشه یا حذف بشه
-				local t = 0
-				while part.Parent and t < PICKUP_WAIT and running do
-					task.wait(0.2)
-					t += 0.2
-				end
-
-				task.wait(TIME_BETWEEN)
-			end
-		end
-	end
+    while running do
+        gatherTargets()
+        
+        if #targets == 0 then
+            task.wait(0.5)
+            continue
+        end
+        
+        -- پاک کردن آیتم‌های از بین رفته
+        for i = #targets, 1, -1 do
+            if not targets[i] or not targets[i].Parent then
+                table.remove(targets, i)
+            end
+        end
+        
+        if #targets == 0 then
+            task.wait(0.5)
+            continue
+        end
+        
+        -- مرتب کردن بر اساس فاصله (نزدیک‌ترین اول)
+        local char = LocalPlayer.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                table.sort(targets, function(a, b)
+                    local distA = (hrp.Position - a.Position).Magnitude
+                    local distB = (hrp.Position - b.Position).Magnitude
+                    return distA < distB
+                end)
+            end
+        end
+        
+        -- انتخاب نزدیک‌ترین آیتم
+        local closestPart = targets[1]
+        
+        if closestPart and closestPart.Parent then
+            print("🎯 جمع‌آوری آیتم: " .. tostring(closestPart.Position))
+            
+            -- ماندن کنار این آیتم تا زمانی که جمع بشه
+            collectItem(closestPart)
+            
+            -- وقتی آیتم جمع شد، کمی صبر کن
+            task.wait(TIME_BETWEEN)
+        else
+            task.wait(0.1)
+        end
+    end
 end
 
--------------------------------------------------
--- 📌 بخش ۳: Toggle رابط کاربری
--------------------------------------------------
+-- Toggle
 local Toggle = FarmTab:CreateToggle({
-	Name = "Auto Farm Trash (P2 Collector Instant)",
-	CurrentValue = false,
-	Flag = "AutoFarmTrashInstant",
-	Callback = function(Value)
-		running = Value
-		if running then
-			print("✅ Auto Farm فعال شد")
-			task.spawn(runAutoPickup)
-		else
-			print("⛔ Auto Farm متوقف شد")
-		end
-	end,
+    Name = "Auto Farm Trash(Aval Roftegar Shavid)",
+    CurrentValue = false,
+    Flag = "Auto Farm Tras",
+    Callback = function(Value)
+        running = Value
+        if running then
+            task.spawn(runAutoPickup)
+            print("✅ Auto Farm شروع شد")
+        else
+            print("⛔ Auto Farm متوقف شد.")
+        end
+    end,
 })
