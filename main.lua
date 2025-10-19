@@ -5,7 +5,7 @@ local Window = Rayfield:CreateWindow({
    Icon = 0, 
    LoadingTitle = "Doctor Hub",
    LoadingSubtitle = "by Dr.Ghalb",
-   ShowText = "Rayfield", 
+   ShowText = "ِDoctorHub", 
    Theme = "Default", 
 
    ToggleUIKeybind = "K", 
