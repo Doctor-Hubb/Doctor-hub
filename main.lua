@@ -325,10 +325,11 @@ end)
 
 
 
+-- 🗺️ Teleport Dropdown (Replace old buttons)
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- 📍 لوکیشن‌ها
+-- 📍 مکان‌ها و مختصات‌ها
 local Locations = {
     ["Spawn"] = Vector3.new(-733, 5, 2121),
     ["Bank"] = Vector3.new(-620, 6, 2040),
@@ -336,11 +337,11 @@ local Locations = {
     ["Amlak-Shoghl"] = Vector3.new(-632, 6, 2195),
 }
 
--- 🚀 تابع تلپورت
+-- 🚀 تابع تلپورت به مکان انتخابی
 local function teleportToLocation(locationName)
     local targetPosition = Locations[locationName]
     if not targetPosition then
-        warn("⚠️ موقعیت پیدا نشد: " .. tostring(locationName))
+        warn("⚠️ مکان پیدا نشد: " .. tostring(locationName))
         return
     end
 
@@ -353,18 +354,19 @@ local function teleportToLocation(locationName)
     end
 end
 
--- 🎛 Dropdown برای انتخاب لوکیشن
+-- 🎛 ایجاد Dropdown برای تلپورت بین مکان‌ها
 local Dropdown = TelTab:CreateDropdown({
-    Name = "Teleport Locations",
+    Name = "Teleport to Location",
     Options = {"Spawn", "Bank", "LebasForoshi", "Amlak-Shoghl"},
     CurrentOption = {},
     MultipleOptions = false,
-    Flag = "TeleportDropdown",
+    Flag = "TeleportLocationDropdown",
     Callback = function(Options)
         local chosen = Options[1]
         teleportToLocation(chosen)
     end,
 })
+
 
 
 
