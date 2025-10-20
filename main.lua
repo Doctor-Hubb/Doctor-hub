@@ -506,6 +506,58 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
-local Section = TelTab:CreateSection("Teleport Player")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- تابع تلپورت به یک بازیکن مشخص
+local function teleportToPlayer(targetName)
+    local targetPlayer = Players:FindFirstChild(targetName)
+    if not targetPlayer or not targetPlayer.Character then
+        warn("❌ بازیکن پیدا نشد یا کاراکتر ندارد!")
+        return
+    end
+
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local myChar = LocalPlayer.Character
+    if targetRoot and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+        myChar.HumanoidRootPart.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+        print("✅ تلپورت شدی به " .. targetName)
+    else
+        warn("⚠️ یکی از کاراکترها ناقص است!")
+    end
+end
+
+-- تابع ساخت لیست بازیکن‌ها
+local function getPlayerNames()
+    local names = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    return names
+end
+
+-- Dropdown
+local Dropdown = TelTab:CreateDropdown({
+    Name = "Teleport To Player",
+    Options = getPlayerNames(),
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "TeleportDropdown",
+    Callback = function(Options)
+        local targetName = Options[1]
+        teleportToPlayer(targetName)
+    end,
+})
+
+-- به‌روزرسانی خودکار لیست وقتی کسی وارد/خارج شد
+Players.PlayerAdded:Connect(function()
+    Dropdown:SetOptions(getPlayerNames())
+end)
+Players.PlayerRemoving:Connect(function()
+    Dropdown:SetOptions(getPlayerNames())
+end)
 
 
