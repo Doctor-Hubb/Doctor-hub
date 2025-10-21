@@ -256,6 +256,88 @@ local Slider = PlayerTab:CreateSlider({
 
 
 
+
+
+
+local Players = game:GetService("Players")
+
+-- تابع برای فعال/غیرفعال کردن Ragdoll
+local function toggleRagdoll(character, state)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then 
+        return 
+    end
+    
+    -- غیرفعال کردن موتورها برای حالت Ragdoll
+    for _, child in ipairs(character:GetDescendants()) do
+        if child:IsA("Motor6D") then
+            child.Enabled = not state
+        end
+    end
+    
+    -- تنظیم PlatformStand برای حالت Ragdoll
+    humanoid.PlatformStand = state
+    
+    print("Ragdoll state:", state)
+end
+
+-- تابع زمانی که کاراکتر اسپاون می‌شود
+local function onCharacterAdded(character, ragdollEnabled)
+    if ragdollEnabled then
+        -- کمی تاخیر برای اطمینان از لود کامل کاراکتر
+        wait(0.5)
+        toggleRagdoll(character, true)
+    end
+end
+
+-- ایجاد Toggle
+local Toggle = PlayerTab:CreateToggle({
+   Name = "Ragdoll",
+   CurrentValue = false,
+   Flag = "RagdollToggle",
+   Callback = function(Value)
+        -- فعال/غیرفعال کردن Ragdoll برای تمام پلیرها
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                toggleRagdoll(player.Character, Value)
+            end
+            
+            -- تنظیم برای کاراکترهای آینده
+            if Value then
+                player.CharacterAdded:Connect(function(character)
+                    onCharacterAdded(character, Value)
+                end)
+            else
+                -- اگر نیاز به قطع کردن connection دارید، اینجا می‌توانید اضافه کنید
+            end
+        end
+        
+        if Value then
+            print("✅ Ragdoll activated for all players!")
+        else
+            print("❌ Ragdoll deactivated for all players!")
+        end
+   end,
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
