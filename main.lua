@@ -33,7 +33,7 @@ local Window = Rayfield:CreateWindow({
       FileName = "Key", 
       SaveKey = false, 
       GrabKeyFromSite = true, 
-      Key = {"kir"} 
+      Key = {"ramz"} 
    }
 })
 
