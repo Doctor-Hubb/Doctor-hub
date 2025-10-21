@@ -262,59 +262,67 @@ local Slider = PlayerTab:CreateSlider({
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
-local function toggleRagdoll(character, state)
+local function enableSafeRagdoll(character)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then 
-        return 
-    end
+    if not humanoid then return end
     
-    -- غیرفعال کردن موتورها برای حالت Ragdoll
+    -- غیرفعال کردن موتورها برای شل شدن بدن
     for _, child in ipairs(character:GetDescendants()) do
         if child:IsA("Motor6D") then
-            child.Enabled = not state
+            child.Enabled = false
         end
     end
     
-    -- تنظیم PlatformStand برای حالت Ragdoll
-    humanoid.PlatformStand = state
+    -- فعال کردن حالت Ragdoll بدون کشتن پلیر
+    humanoid.PlatformStand = true
     
-    print("Ragdoll state for local player:", state)
+    -- اطمینان از اینکه پلیر نمیمیرد
+    humanoid.Health = humanoid.MaxHealth
+    
+    print("🎭 Ragdoll activated - Player is limp but alive!")
 end
 
-local function onCharacterAdded(character)
-    if Toggle.CurrentValue then
-        wait(0.3)
-        toggleRagdoll(character, true)
+local function disableRagdoll(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    -- فعال کردن مجدد موتورها
+    for _, child in ipairs(character:GetDescendants()) do
+        if child:IsA("Motor6D") then
+            child.Enabled = true
+        end
     end
+    
+    -- غیرفعال کردن حالت PlatformStand
+    humanoid.PlatformStand = false
+    
+    print("🚶 Player is back to normal!")
 end
 
 -- ایجاد Toggle
 local Toggle = PlayerTab:CreateToggle({
-   Name = "Ragdoll",
+   Name = "Ragdoll Mode",
    CurrentValue = false,
    Flag = "RagdollToggle",
    Callback = function(Value)
-        if localPlayer.Character then
-            toggleRagdoll(localPlayer.Character, Value)
-        end
-        
-        -- مدیریت کاراکترهای آینده
-        if Value then
-            localPlayer.CharacterAdded:Connect(onCharacterAdded)
-        end
+        local character = localPlayer.Character
+        if not character then return end
         
         if Value then
-            print("🎭 Ragdoll activated for YOU!")
+            enableSafeRagdoll(character)
         else
-            print("🎭 Ragdoll deactivated for YOU!")
+            disableRagdoll(character)
         end
    end,
 })
 
--- اگر toggle از قبل فعال بود، برای کاراکتر فعلی اعمال شود
-if Toggle.CurrentValue and localPlayer.Character then
-    toggleRagdoll(localPlayer.Character, true)
-end
+-- مدیریت کاراکترهای جدید
+localPlayer.CharacterAdded:Connect(function(character)
+    wait(0.5) -- کمی تاخیر برای لود کامل کاراکتر
+    if Toggle.CurrentValue then
+        enableSafeRagdoll(character)
+    end
+end)
 
 
 
