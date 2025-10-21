@@ -259,76 +259,7 @@ local Slider = PlayerTab:CreateSlider({
 
 
 
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
 
-local function enableUnifiedRagdoll(character)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    
-    -- غیرفعال کردن Ragdoll و保持 بدن به هم پیوسته
-    humanoid.PlatformStand = true
-    
-    -- فعال نگه داشتن تمام موتورها برای حفظ اتصال اعضا
-    for _, motor in ipairs(character:GetDescendants()) do
-        if motor:IsA("Motor6D") then
-            motor.Enabled = true
-        end
-    end
-    
-    -- تنظیم حالت فیزیکی برای قابلیت هل داده شدن
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if rootPart then
-        rootPart.CustomPhysicalProperties = PhysicalProperties.new(
-            0.5,  -- Density (چگالی کم برای سبکی)
-            0.3,  -- Friction (اصطکاک کم برای لغزندگی)
-            0.5   -- Elasticity (کشسانی)
-        )
-    end
-    
-    print("🎯 Player is now a unified physics object!")
-end
-
-local function disableUnifiedRagdoll(character)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    
-    -- بازگشت به حالت عادی
-    humanoid.PlatformStand = false
-    
-    -- بازگردانی properties فیزیکی
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if rootPart then
-        rootPart.CustomPhysicalProperties = nil
-    end
-    
-    print("🚶 Player returned to normal!")
-end
-
--- ایجاد Toggle
-local Toggle = PlayerTab:CreateToggle({
-   Name = "Unified Physics",
-   CurrentValue = false,
-   Flag = "UnifiedPhysicsToggle",
-   Callback = function(Value)
-        local character = localPlayer.Character
-        if not character then return end
-        
-        if Value then
-            enableUnifiedRagdoll(character)
-        else
-            disableUnifiedRagdoll(character)
-        end
-   end,
-})
-
--- مدیریت کاراکترهای جدید
-localPlayer.CharacterAdded:Connect(function(character)
-    wait(0.5)
-    if Toggle.CurrentValue then
-        enableUnifiedRagdoll(character)
-    end
-end)
 
 
 
