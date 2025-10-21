@@ -260,8 +260,8 @@ local Slider = PlayerTab:CreateSlider({
 
 
 local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
 
--- تابع برای فعال/غیرفعال کردن Ragdoll
 local function toggleRagdoll(character, state)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not humanoid then 
@@ -278,14 +278,12 @@ local function toggleRagdoll(character, state)
     -- تنظیم PlatformStand برای حالت Ragdoll
     humanoid.PlatformStand = state
     
-    print("Ragdoll state:", state)
+    print("Ragdoll state for local player:", state)
 end
 
--- تابع زمانی که کاراکتر اسپاون می‌شود
-local function onCharacterAdded(character, ragdollEnabled)
-    if ragdollEnabled then
-        -- کمی تاخیر برای اطمینان از لود کامل کاراکتر
-        wait(0.5)
+local function onCharacterAdded(character)
+    if Toggle.CurrentValue then
+        wait(0.3)
         toggleRagdoll(character, true)
     end
 end
@@ -296,30 +294,27 @@ local Toggle = PlayerTab:CreateToggle({
    CurrentValue = false,
    Flag = "RagdollToggle",
    Callback = function(Value)
-        -- فعال/غیرفعال کردن Ragdoll برای تمام پلیرها
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character then
-                toggleRagdoll(player.Character, Value)
-            end
-            
-            -- تنظیم برای کاراکترهای آینده
-            if Value then
-                player.CharacterAdded:Connect(function(character)
-                    onCharacterAdded(character, Value)
-                end)
-            else
-                -- اگر نیاز به قطع کردن connection دارید، اینجا می‌توانید اضافه کنید
-            end
+        if localPlayer.Character then
+            toggleRagdoll(localPlayer.Character, Value)
+        end
+        
+        -- مدیریت کاراکترهای آینده
+        if Value then
+            localPlayer.CharacterAdded:Connect(onCharacterAdded)
         end
         
         if Value then
-            print("✅ Ragdoll activated for all players!")
+            print("🎭 Ragdoll activated for YOU!")
         else
-            print("❌ Ragdoll deactivated for all players!")
+            print("🎭 Ragdoll deactivated for YOU!")
         end
    end,
 })
 
+-- اگر toggle از قبل فعال بود، برای کاراکتر فعلی اعمال شود
+if Toggle.CurrentValue and localPlayer.Character then
+    toggleRagdoll(localPlayer.Character, true)
+end
 
 
 
