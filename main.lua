@@ -41,6 +41,7 @@ local PlayerTab = Window:CreateTab("Player", 4483362458)
 local ComTab = Window:CreateTab("Combat", 4483362458) 
 local TelTab = Window:CreateTab("Teleport", 4483362458) 
 local FarmTab = Window:CreateTab("Farm", 4483362458) 
+local CommTab = Window:CreateTab("Combat", 4483362458) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
