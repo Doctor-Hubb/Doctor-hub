@@ -37,10 +37,10 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
-local PlayerTab = Window:CreateTab("Player", 6789012345) 
-local ComTab = Window:CreateTab("Combat", 3456789012) 
-local TelTab = Window:CreateTab("Teleport", 1234567890) 
-local FarmTab = Window:CreateTab("Farm", 4567890123) 
+local PlayerTab = Window:CreateTab("🏠 Player", nil) 
+local ComTab = Window:CreateTab("🔫 Combat", nil) 
+local TelTab = Window:CreateTab("🏝 Teleport", nil) 
+local FarmTab = Window:CreateTab("💵 Farm", nil) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
