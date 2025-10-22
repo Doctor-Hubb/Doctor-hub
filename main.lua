@@ -603,9 +603,8 @@ do
     local Camera = workspace.CurrentCamera
     local LocalPlayer = Players.LocalPlayer
     local mouse = LocalPlayer:GetMouse()
-    local StarterPlayer = game:GetService("StarterPlayer")
 
-    -- تنظیمات
+    -- تنظیمات اصلی
     local Aimbot = {
         Enabled = false,
         FOVEnabled = true,
@@ -615,30 +614,35 @@ do
         TriggerKeyName = "MouseButton2",
     }
 
-    -- دایره‌ی FOV
+    -- دایره FOV
     local circle = Drawing.new("Circle")
     circle.Visible = false
     circle.Radius = Aimbot.FOVRadius
-    circle.Color = Color3.fromRGB(255,255,255)
+    circle.Color = Color3.fromRGB(255, 255, 255)
     circle.Thickness = 1
     circle.NumSides = 64
     circle.Filled = false
     circle.Transparency = 0.6
 
+    -- حالت RGB
     local RGBEnabled = false
     local customColor = Color3.fromRGB(255, 255, 255)
     local hue = 0
     local aiming = false
+    local shiftLock = false  -- 🔹 حالت فعلی شیفت‌لاک
 
-    -- چک کردن فعال بودن شیفت لاک
-    local function isShiftLockActive()
-        local controlModule = require(LocalPlayer.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
-        return controlModule:GetIsMouseLocked()
-    end
+    -- وقتی کاربر Shift فشار می‌دهد (روشن/خاموش)
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.LeftShift then
+            shiftLock = not shiftLock
+        end
+    end)
 
+    -- پیدا کردن هدف نزدیک
     local function getTargets()
         local t = {}
-        for _,p in ipairs(Players:GetPlayers()) do
+        for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
@@ -677,23 +681,25 @@ do
         return closest
     end
 
+    -- حرکت دوربین به هدف
     local function aimAt(part)
         if not part then return end
-        if isShiftLockActive() then
-            -- با شیفت لاک از موس موو استفاده کن
+        if shiftLock then
+            -- اگر شیفت لاک فعاله → حرکت موس
             local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             if onScreen then
                 local dx = (pos.X - mouse.X)
                 local dy = (pos.Y - mouse.Y)
-                mousemoverel(dx / 10, dy / 10)
+                mousemoverel(dx / 8, dy / 8)
             end
         else
-            -- بدون شیفت لاک از CFrame مستقیم استفاده کن
+            -- اگر خاموشه → مستقیم به هدف نگاه کن
             local camPos = Camera.CFrame.Position
             Camera.CFrame = CFrame.new(camPos, part.Position)
         end
     end
 
+    -- چک کردن دکمه تریگر (کلیک راست یا کلید دیگر)
     local function isTriggerInput(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
         if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
@@ -704,6 +710,7 @@ do
         return false
     end
 
+    -- کنترل هدف‌گیری با ماوس
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if isTriggerInput(input) then aiming = true end
@@ -712,10 +719,11 @@ do
         if isTriggerInput(input) then aiming = false end
     end)
 
+    -- بروزرسانی هر فریم
     RunService.RenderStepped:Connect(function()
         if not Aimbot.Enabled then circle.Visible = false return end
 
-        -- رنگ
+        -- رنگ FOV
         if RGBEnabled then
             hue = (hue + 0.005) % 1
             circle.Color = Color3.fromHSV(hue, 1, 1)
@@ -731,6 +739,7 @@ do
             circle.Visible = false
         end
 
+        -- هدف‌گیری خودکار
         if aiming then
             local target = findClosest()
             if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
@@ -739,9 +748,9 @@ do
         end
     end)
 
-    -- === UI ===
+    -- === رابط کاربری ===
     ComTab:CreateToggle({
-        Name = "Aimbot",
+        Name = "Aimbot Enabled",
         CurrentValue = false,
         Callback = function(v) Aimbot.Enabled = v end
     })
@@ -788,6 +797,7 @@ do
         Callback = function(c) customColor = c end
     })
 end
+
 
 
 
