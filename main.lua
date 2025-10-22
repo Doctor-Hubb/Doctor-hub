@@ -596,6 +596,7 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
+-- === Simple Aimbot + FOV + RGB Mode ===
 do
     local Players = game:GetService("Players")
     local UserInputService = game:GetService("UserInputService")
@@ -614,35 +615,25 @@ do
         TriggerKeyName = "MouseButton2",
     }
 
-    -- دایره FOV
+    -- دایره‌ی FOV
     local circle = Drawing.new("Circle")
     circle.Visible = false
     circle.Radius = Aimbot.FOVRadius
-    circle.Color = Color3.fromRGB(255, 255, 255)
+    circle.Color = Color3.fromRGB(255,255,255)
     circle.Thickness = 1
     circle.NumSides = 64
     circle.Filled = false
     circle.Transparency = 0.6
 
-    -- حالت RGB
+    -- کنترل رنگ FOV
     local RGBEnabled = false
     local customColor = Color3.fromRGB(255, 255, 255)
     local hue = 0
-    local aiming = false
-    local shiftLock = false  -- 🔹 حالت فعلی شیفت‌لاک
 
-    -- وقتی کاربر Shift فشار می‌دهد (روشن/خاموش)
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        if input.KeyCode == Enum.KeyCode.LeftShift then
-            shiftLock = not shiftLock
-        end
-    end)
-
-    -- پیدا کردن هدف نزدیک
+    -- پیدا کردن نزدیک‌ترین بازیکن
     local function getTargets()
         local t = {}
-        for _, p in ipairs(Players:GetPlayers()) do
+        for _,p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
@@ -681,25 +672,13 @@ do
         return closest
     end
 
-    -- حرکت دوربین به هدف
     local function aimAt(part)
         if not part then return end
-        if shiftLock then
-            -- اگر شیفت لاک فعاله → حرکت موس
-            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if onScreen then
-                local dx = (pos.X - mouse.X)
-                local dy = (pos.Y - mouse.Y)
-                mousemoverel(dx / 8, dy / 8)
-            end
-        else
-            -- اگر خاموشه → مستقیم به هدف نگاه کن
-            local camPos = Camera.CFrame.Position
-            Camera.CFrame = CFrame.new(camPos, part.Position)
-        end
+        local camPos = Camera.CFrame.Position
+        Camera.CFrame = CFrame.new(camPos, part.Position)
     end
 
-    -- چک کردن دکمه تریگر (کلیک راست یا کلید دیگر)
+    local aiming = false
     local function isTriggerInput(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
         if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
@@ -710,7 +689,6 @@ do
         return false
     end
 
-    -- کنترل هدف‌گیری با ماوس
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if isTriggerInput(input) then aiming = true end
@@ -719,11 +697,11 @@ do
         if isTriggerInput(input) then aiming = false end
     end)
 
-    -- بروزرسانی هر فریم
+    -- main loop
     RunService.RenderStepped:Connect(function()
         if not Aimbot.Enabled then circle.Visible = false return end
 
-        -- رنگ FOV
+        -- update FOV color
         if RGBEnabled then
             hue = (hue + 0.005) % 1
             circle.Color = Color3.fromHSV(hue, 1, 1)
@@ -731,6 +709,7 @@ do
             circle.Color = customColor
         end
 
+        -- draw FOV
         if Aimbot.FOVEnabled then
             circle.Visible = true
             circle.Position = Vector2.new(mouse.X, mouse.Y)
@@ -739,7 +718,7 @@ do
             circle.Visible = false
         end
 
-        -- هدف‌گیری خودکار
+        -- aim logic
         if aiming then
             local target = findClosest()
             if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
@@ -748,7 +727,7 @@ do
         end
     end)
 
-    -- === رابط کاربری ===
+    -- === UI ===
     ComTab:CreateToggle({
         Name = "Aimbot Enabled",
         CurrentValue = false,
@@ -785,6 +764,7 @@ do
         Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end
     })
 
+    -- 🌈 رنگ
     ComTab:CreateToggle({
         Name = "RGB FOV",
         CurrentValue = false,
@@ -794,9 +774,12 @@ do
     ComTab:CreateColorPicker({
         Name = "FOV Color",
         Color = Color3.fromRGB(255,255,255),
-        Callback = function(c) customColor = c end
+        Callback = function(c)
+            customColor = c
+        end
     })
 end
+
 
 
 
