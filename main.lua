@@ -741,7 +741,7 @@ do
 
     -- === UI ===
     ComTab:CreateToggle({
-        Name = "Aimbot Enabled",
+        Name = "Aimbot",
         CurrentValue = false,
         Callback = function(v) Aimbot.Enabled = v end
     })
