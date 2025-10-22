@@ -596,29 +596,26 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
--- === Simple Aimbot + FOV (fixed mouse source & FOV slider) ===
+-- === Simple Aimbot + FOV + RGB Mode ===
 do
     local Players = game:GetService("Players")
     local UserInputService = game:GetService("UserInputService")
     local RunService = game:GetService("RunService")
     local Camera = workspace.CurrentCamera
     local LocalPlayer = Players.LocalPlayer
-
-    -- get a Mouse object (more consistent across camera modes)
     local mouse = LocalPlayer:GetMouse()
 
-    -- state
+    -- تنظیمات اصلی
     local Aimbot = {
         Enabled = false,
         FOVEnabled = true,
         FOVRadius = 120,
         LockPart = "Head",
         TeamCheck = false,
-        TriggerKeyName = "MouseButton2", -- string for UI/dropdown compatibility
-        -- internal computed trigger enum test happens in handlers below
+        TriggerKeyName = "MouseButton2",
     }
 
-    -- Drawing FOV circle
+    -- دایره‌ی FOV
     local circle = Drawing.new("Circle")
     circle.Visible = false
     circle.Radius = Aimbot.FOVRadius
@@ -628,85 +625,101 @@ do
     circle.Filled = false
     circle.Transparency = 0.6
 
-    -- helper: get all potential targets
-    local function getPlayers()
-        local out = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) and p.Character:FindFirstChildOfClass("Humanoid") then
+    -- کنترل رنگ FOV
+    local RGBEnabled = false
+    local customColor = Color3.fromRGB(255, 255, 255)
+    local hue = 0
+
+    -- پیدا کردن نزدیک‌ترین بازیکن
+    local function getTargets()
+        local t = {}
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
                     if Aimbot.TeamCheck then
                         if p.Team ~= LocalPlayer.Team then
-                            table.insert(out, p)
+                            table.insert(t, p)
                         end
                     else
-                        table.insert(out, p)
+                        table.insert(t, p)
                     end
                 end
             end
         end
-        return out
+        return t
     end
 
-    -- helper: screen pos and on screen check
     local function getScreenPos(part)
         local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
         return Vector2.new(pos.X, pos.Y), onScreen
     end
 
-    -- find closest to mouse within FOV
     local function findClosest()
-        -- use mouse.X/Y (more consistent than UserInputService:GetMouseLocation in some camera modes)
         local mousePos = Vector2.new(mouse.X, mouse.Y)
-        local closestDist = Aimbot.FOVRadius
-        local closestPlayer = nil
-
-        for _, p in ipairs(getPlayers()) do
-            local part = p.Character and p.Character:FindFirstChild(Aimbot.LockPart)
-            if part then
-                local screenPos, onScreen = getScreenPos(part)
-                if onScreen then
-                    local dist = (mousePos - screenPos).Magnitude
-                    if dist <= closestDist then
-                        closestDist = dist
-                        closestPlayer = p
-                    end
+        local closest, dist = nil, Aimbot.FOVRadius
+        for _, p in ipairs(getTargets()) do
+            local part = p.Character[Aimbot.LockPart]
+            local screenPos, onScreen = getScreenPos(part)
+            if onScreen then
+                local d = (mousePos - screenPos).Magnitude
+                if d <= dist then
+                    dist = d
+                    closest = p
                 end
             end
         end
-
-        return closestPlayer
+        return closest
     end
 
-    local aiming = false
-
-    -- direct aim (no sensitivity) — sets camera to look at target
     local function aimAt(part)
         if not part then return end
         local camPos = Camera.CFrame.Position
-        -- set camera to look at target position (works in Classic/Follow/ShiftLock)
         Camera.CFrame = CFrame.new(camPos, part.Position)
     end
 
+    local aiming = false
+    local function isTriggerInput(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local key = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
+            if key == Aimbot.TriggerKeyName then return true end
+        end
+        return false
+    end
+
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if isTriggerInput(input) then aiming = true end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if isTriggerInput(input) then aiming = false end
+    end)
+
     -- main loop
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        if not Aimbot.Enabled then
-            circle.Visible = false
-            return
+    RunService.RenderStepped:Connect(function()
+        if not Aimbot.Enabled then circle.Visible = false return end
+
+        -- update FOV color
+        if RGBEnabled then
+            hue = (hue + 0.005) % 1
+            circle.Color = Color3.fromHSV(hue, 1, 1)
+        else
+            circle.Color = customColor
         end
 
-        -- draw fov circle at mouse
+        -- draw FOV
         if Aimbot.FOVEnabled then
-            local mx, my = mouse.X or UserInputService:GetMouseLocation().X, mouse.Y or UserInputService:GetMouseLocation().Y
             circle.Visible = true
-            circle.Position = Vector2.new(mx, my)
+            circle.Position = Vector2.new(mouse.X, mouse.Y)
             circle.Radius = Aimbot.FOVRadius
         else
             circle.Visible = false
         end
 
-        if Aimbot.Enabled and aiming then
+        -- aim logic
+        if aiming then
             local target = findClosest()
             if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
                 aimAt(target.Character[Aimbot.LockPart])
@@ -714,54 +727,25 @@ do
         end
     end)
 
-    -- Helper: matches various input types for trigger
-    local function isTriggerInput(input)
-        -- mouse buttons: Input.UserInputType is MouseButton1/2 etc.
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
-        if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
-        -- keyboard keys (if user selects "E" for example)
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            local keyName = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
-            if keyName == Aimbot.TriggerKeyName then return true end
-        end
-        return false
-    end
-
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        if isTriggerInput(input) then
-            aiming = true
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if isTriggerInput(input) then
-            aiming = false
-        end
-    end)
-
-    -- ===== UI in Combat tab =====
+    -- === UI ===
     ComTab:CreateToggle({
-        Name = "Aimbot (hold trigger)",
+        Name = "Aimbot Enabled",
         CurrentValue = false,
-        Flag = "SimpleAimbotEnable",
-        Callback = function(val) Aimbot.Enabled = val end,
+        Callback = function(v) Aimbot.Enabled = v end
     })
 
     ComTab:CreateToggle({
         Name = "Show FOV",
         CurrentValue = true,
-        Flag = "SimpleAimbotFOVShow",
-        Callback = function(v) Aimbot.FOVEnabled = v end,
+        Callback = function(v) Aimbot.FOVEnabled = v end
     })
 
     ComTab:CreateSlider({
-        Name = "FOV Radius",
+        Name = "FOV Size",
         Range = {30, 800},
         Increment = 5,
-        Suffix = "px",
         CurrentValue = Aimbot.FOVRadius,
-        Flag = "SimpleAimbotFOVRadius",
-        Callback = function(v) Aimbot.FOVRadius = v end,
+        Callback = function(v) Aimbot.FOVRadius = v end
     })
 
     ComTab:CreateDropdown({
@@ -769,8 +753,7 @@ do
         Options = {"Head","UpperTorso","HumanoidRootPart"},
         CurrentOption = {Aimbot.LockPart},
         MultipleOptions = false,
-        Flag = "SimpleAimbotLockPart",
-        Callback = function(opt) Aimbot.LockPart = opt[1] end,
+        Callback = function(opt) Aimbot.LockPart = opt[1] end
     })
 
     ComTab:CreateDropdown({
@@ -778,17 +761,23 @@ do
         Options = {"MouseButton2","MouseButton1","E"},
         CurrentOption = {Aimbot.TriggerKeyName},
         MultipleOptions = false,
-        Flag = "SimpleAimbotTrigger",
-        Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end,
+        Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end
     })
 
-    -- cleanup handle (optional)
-    getgenv().SimpleAimbotHandle = {
-        Disconnect = function()
-            if conn and conn.Connected then conn:Disconnect() end
-            pcall(function() circle:Remove() end)
+    -- 🌈 رنگ
+    ComTab:CreateToggle({
+        Name = "RGB FOV",
+        CurrentValue = false,
+        Callback = function(v) RGBEnabled = v end
+    })
+
+    ComTab:CreateColorPicker({
+        Name = "FOV Color",
+        Color = Color3.fromRGB(255,255,255),
+        Callback = function(c)
+            customColor = c
         end
-    }
+    })
 end
 
 
