@@ -396,7 +396,7 @@ end)
 
 
 
--- === Simple Aimbot + FOV + RGB Mode ===
+-- === Simple Aimbot + FOV + RGB Mode + Team Check ===
 do
     local Players = game:GetService("Players")
     local UserInputService = game:GetService("UserInputService")
@@ -405,7 +405,7 @@ do
     local LocalPlayer = Players.LocalPlayer
     local mouse = LocalPlayer:GetMouse()
 
-    -- تنظیمات اصلی
+    -- ⚙️ تنظیمات اصلی
     local Aimbot = {
         Enabled = false,
         FOVEnabled = true,
@@ -415,7 +415,7 @@ do
         TriggerKeyName = "MouseButton2",
     }
 
-    -- دایره‌ی FOV
+    -- 🎯 دایره‌ی FOV
     local circle = Drawing.new("Circle")
     circle.Visible = false
     circle.Radius = Aimbot.FOVRadius
@@ -425,12 +425,12 @@ do
     circle.Filled = false
     circle.Transparency = 0.6
 
-    -- کنترل رنگ FOV
+    -- 🌈 کنترل رنگ FOV
     local RGBEnabled = false
     local customColor = Color3.fromRGB(255, 255, 255)
     local hue = 0
 
-    -- پیدا کردن نزدیک‌ترین بازیکن
+    -- 🎯 پیدا کردن هدف‌ها
     local function getTargets()
         local t = {}
         for _,p in ipairs(Players:GetPlayers()) do
@@ -478,6 +478,7 @@ do
         Camera.CFrame = CFrame.new(camPos, part.Position)
     end
 
+    -- 🖱 کنترل ورودی
     local aiming = false
     local function isTriggerInput(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
@@ -497,11 +498,11 @@ do
         if isTriggerInput(input) then aiming = false end
     end)
 
-    -- main loop
+    -- 🔁 حلقه‌ی اصلی
     RunService.RenderStepped:Connect(function()
         if not Aimbot.Enabled then circle.Visible = false return end
 
-        -- update FOV color
+        -- رنگ FOV
         if RGBEnabled then
             hue = (hue + 0.005) % 1
             circle.Color = Color3.fromHSV(hue, 1, 1)
@@ -509,7 +510,7 @@ do
             circle.Color = customColor
         end
 
-        -- draw FOV
+        -- رسم دایره
         if Aimbot.FOVEnabled then
             circle.Visible = true
             circle.Position = Vector2.new(mouse.X, mouse.Y)
@@ -518,7 +519,7 @@ do
             circle.Visible = false
         end
 
-        -- aim logic
+        -- هدف‌گیری
         if aiming then
             local target = findClosest()
             if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
@@ -527,7 +528,7 @@ do
         end
     end)
 
-    -- === UI ===
+    -- 🧩 UI Options
     ComTab:CreateToggle({
         Name = "Aimbot Enabled",
         CurrentValue = false,
@@ -564,7 +565,16 @@ do
         Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end
     })
 
-    -- 🌈 رنگ
+    -- ✅ Team Check Toggle
+    ComTab:CreateToggle({
+        Name = "Team Check",
+        CurrentValue = false,
+        Callback = function(v)
+            Aimbot.TeamCheck = v
+        end
+    })
+
+    -- 🌈 رنگ FOV
     ComTab:CreateToggle({
         Name = "RGB FOV",
         CurrentValue = false,
@@ -579,6 +589,7 @@ do
         end
     })
 end
+
 
 
 
