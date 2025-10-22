@@ -2,44 +2,44 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Doctor Hub",
-   Icon = 0, 
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "Doctor Hub",
    LoadingSubtitle = "by Dr.Ghalb",
-   ShowText = "Rayfield", 
-   Theme = "Default", 
+   ShowText = "ِDoctorHub", -- for mobile users to unhide rayfield, change if you'd like
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
 
-   ToggleUIKeybind = "K", 
+   ToggleUIKeybind = "K", -- The keybind to toggle the UI visibility (string like "K" or Enum.KeyCode)
 
    DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false, 
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
 
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = nil, 
+      FolderName = nil, -- Create a custom folder for your hub/game
       FileName = "Big Hub"
    },
 
    Discord = {
-      Enabled = false, 
-      Invite = "noinvitelink", 
-      RememberJoins = true 
+      Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
    },
 
-   KeySystem = true, 
+   KeySystem = true, -- Set this to true to use our key system
    KeySettings = {
       Title = "Key",
       Subtitle = "Key System",
-      Note = "No method of obtaining the key is provided", 
-      FileName = "Key", 
-      SaveKey = true, 
-      GrabKeyFromSite = false, 
-      Key = {"nigga"} 
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = false, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"ramz"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
    }
 })
 
-local PlayerTab = Window:CreateTab("Player", 4483362458) 
-local TelTab = Window:CreateTab("Teleport", 4483362458) 
-local FarmTab = Window:CreateTab("Farm", 4483362458) 
+local PlayerTab = Window:CreateTab("🏠 Player", nil) 
+local ComTab = Window:CreateTab("🔫 Combat", nil) 
+local TelTab = Window:CreateTab("🏝 Teleport", nil)  
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -251,3 +251,377 @@ local Slider = PlayerTab:CreateSlider({
       humanoid.JumpPower = Value
    end,
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- تابع تلپورت به یک بازیکن مشخص
+local function teleportToPlayer(targetName)
+    local targetPlayer = Players:FindFirstChild(targetName)
+    if not targetPlayer or not targetPlayer.Character then
+        warn("❌ بازیکن پیدا نشد یا کاراکتر ندارد!")
+        return
+    end
+
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local myChar = LocalPlayer.Character
+    if targetRoot and myChar and myChar:FindFirstChild("HumanoidRootPart") then
+        myChar.HumanoidRootPart.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+        print("✅ تلپورت شدی به " .. targetName)
+    else
+        warn("⚠️ یکی از کاراکترها ناقص است!")
+    end
+end
+
+-- تابع ساخت لیست بازیکن‌ها
+local function getPlayerNames()
+    local names = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    return names
+end
+
+-- Dropdown
+local Dropdown = TelTab:CreateDropdown({
+    Name = "Teleport To Player",
+    Options = getPlayerNames(),
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "TeleportDropdown",
+    Callback = function(Options)
+        local targetName = Options[1]
+        teleportToPlayer(targetName)
+    end,
+})
+
+-- به‌روزرسانی خودکار لیست وقتی کسی وارد/خارج شد
+Players.PlayerAdded:Connect(function()
+    Dropdown:SetOptions(getPlayerNames())
+end)
+Players.PlayerRemoving:Connect(function()
+    Dropdown:SetOptions(getPlayerNames())
+end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- 🗺️ Teleport Dropdown (Replace old buttons)
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- 📍 مکان‌ها و مختصات‌ها
+local Locations = {
+    ["Spawn"] = Vector3.new(-733, 5, 2121),
+    ["Bank"] = Vector3.new(-620, 6, 2040),
+    ["LebasForoshi"] = Vector3.new(-645, 6, 2137),
+    ["Amlak-Shoghl"] = Vector3.new(-632, 6, 2195),
+}
+
+-- 🚀 تابع تلپورت به مکان انتخابی
+local function teleportToLocation(locationName)
+    local targetPosition = Locations[locationName]
+    if not targetPosition then
+        warn("⚠️ مکان پیدا نشد: " .. tostring(locationName))
+        return
+    end
+
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
+        print("✅ تلپورت شدی به: " .. locationName)
+    else
+        warn("❌ HumanoidRootPart پیدا نشد!")
+    end
+end
+
+-- 🎛 ایجاد Dropdown برای تلپورت بین مکان‌ها
+local Dropdown = TelTab:CreateDropdown({
+    Name = "Teleport to Location",
+    Options = {"Spawn", "Bank", "LebasForoshi", "Amlak-Shoghl"},
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "TeleportLocationDropdown",
+    Callback = function(Options)
+        local chosen = Options[1]
+        teleportToLocation(chosen)
+    end,
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- === Simple Aimbot + FOV + RGB Mode ===
+do
+    local Players = game:GetService("Players")
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Camera = workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
+    local mouse = LocalPlayer:GetMouse()
+
+    -- تنظیمات اصلی
+    local Aimbot = {
+        Enabled = false,
+        FOVEnabled = true,
+        FOVRadius = 120,
+        LockPart = "Head",
+        TeamCheck = false,
+        TriggerKeyName = "MouseButton2",
+    }
+
+    -- دایره‌ی FOV
+    local circle = Drawing.new("Circle")
+    circle.Visible = false
+    circle.Radius = Aimbot.FOVRadius
+    circle.Color = Color3.fromRGB(255,255,255)
+    circle.Thickness = 1
+    circle.NumSides = 64
+    circle.Filled = false
+    circle.Transparency = 0.6
+
+    -- کنترل رنگ FOV
+    local RGBEnabled = false
+    local customColor = Color3.fromRGB(255, 255, 255)
+    local hue = 0
+
+    -- پیدا کردن نزدیک‌ترین بازیکن
+    local function getTargets()
+        local t = {}
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    if Aimbot.TeamCheck then
+                        if p.Team ~= LocalPlayer.Team then
+                            table.insert(t, p)
+                        end
+                    else
+                        table.insert(t, p)
+                    end
+                end
+            end
+        end
+        return t
+    end
+
+    local function getScreenPos(part)
+        local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        return Vector2.new(pos.X, pos.Y), onScreen
+    end
+
+    local function findClosest()
+        local mousePos = Vector2.new(mouse.X, mouse.Y)
+        local closest, dist = nil, Aimbot.FOVRadius
+        for _, p in ipairs(getTargets()) do
+            local part = p.Character[Aimbot.LockPart]
+            local screenPos, onScreen = getScreenPos(part)
+            if onScreen then
+                local d = (mousePos - screenPos).Magnitude
+                if d <= dist then
+                    dist = d
+                    closest = p
+                end
+            end
+        end
+        return closest
+    end
+
+    local function aimAt(part)
+        if not part then return end
+        local camPos = Camera.CFrame.Position
+        Camera.CFrame = CFrame.new(camPos, part.Position)
+    end
+
+    local aiming = false
+    local function isTriggerInput(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local key = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
+            if key == Aimbot.TriggerKeyName then return true end
+        end
+        return false
+    end
+
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if isTriggerInput(input) then aiming = true end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if isTriggerInput(input) then aiming = false end
+    end)
+
+    -- main loop
+    RunService.RenderStepped:Connect(function()
+        if not Aimbot.Enabled then circle.Visible = false return end
+
+        -- update FOV color
+        if RGBEnabled then
+            hue = (hue + 0.005) % 1
+            circle.Color = Color3.fromHSV(hue, 1, 1)
+        else
+            circle.Color = customColor
+        end
+
+        -- draw FOV
+        if Aimbot.FOVEnabled then
+            circle.Visible = true
+            circle.Position = Vector2.new(mouse.X, mouse.Y)
+            circle.Radius = Aimbot.FOVRadius
+        else
+            circle.Visible = false
+        end
+
+        -- aim logic
+        if aiming then
+            local target = findClosest()
+            if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
+                aimAt(target.Character[Aimbot.LockPart])
+            end
+        end
+    end)
+
+    -- === UI ===
+    ComTab:CreateToggle({
+        Name = "Aimbot Enabled",
+        CurrentValue = false,
+        Callback = function(v) Aimbot.Enabled = v end
+    })
+
+    ComTab:CreateToggle({
+        Name = "Show FOV",
+        CurrentValue = true,
+        Callback = function(v) Aimbot.FOVEnabled = v end
+    })
+
+    ComTab:CreateSlider({
+        Name = "FOV Size",
+        Range = {30, 800},
+        Increment = 5,
+        CurrentValue = Aimbot.FOVRadius,
+        Callback = function(v) Aimbot.FOVRadius = v end
+    })
+
+    ComTab:CreateDropdown({
+        Name = "Lock Part",
+        Options = {"Head","UpperTorso","HumanoidRootPart"},
+        CurrentOption = {Aimbot.LockPart},
+        MultipleOptions = false,
+        Callback = function(opt) Aimbot.LockPart = opt[1] end
+    })
+
+    ComTab:CreateDropdown({
+        Name = "Trigger Key",
+        Options = {"MouseButton2","MouseButton1","E"},
+        CurrentOption = {Aimbot.TriggerKeyName},
+        MultipleOptions = false,
+        Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end
+    })
+
+    -- 🌈 رنگ
+    ComTab:CreateToggle({
+        Name = "RGB FOV",
+        CurrentValue = false,
+        Callback = function(v) RGBEnabled = v end
+    })
+
+    ComTab:CreateColorPicker({
+        Name = "FOV Color",
+        Color = Color3.fromRGB(255,255,255),
+        Callback = function(c)
+            customColor = c
+        end
+    })
+end
+
+
+
+
+
