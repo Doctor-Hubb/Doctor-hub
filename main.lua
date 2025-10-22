@@ -596,7 +596,6 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
--- === Simple Aimbot + FOV + RGB Mode ===
 do
     local Players = game:GetService("Players")
     local UserInputService = game:GetService("UserInputService")
@@ -604,8 +603,9 @@ do
     local Camera = workspace.CurrentCamera
     local LocalPlayer = Players.LocalPlayer
     local mouse = LocalPlayer:GetMouse()
+    local StarterPlayer = game:GetService("StarterPlayer")
 
-    -- تنظیمات اصلی
+    -- تنظیمات
     local Aimbot = {
         Enabled = false,
         FOVEnabled = true,
@@ -625,12 +625,17 @@ do
     circle.Filled = false
     circle.Transparency = 0.6
 
-    -- کنترل رنگ FOV
     local RGBEnabled = false
     local customColor = Color3.fromRGB(255, 255, 255)
     local hue = 0
+    local aiming = false
 
-    -- پیدا کردن نزدیک‌ترین بازیکن
+    -- چک کردن فعال بودن شیفت لاک
+    local function isShiftLockActive()
+        local controlModule = require(LocalPlayer.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
+        return controlModule:GetIsMouseLocked()
+    end
+
     local function getTargets()
         local t = {}
         for _,p in ipairs(Players:GetPlayers()) do
@@ -674,11 +679,21 @@ do
 
     local function aimAt(part)
         if not part then return end
-        local camPos = Camera.CFrame.Position
-        Camera.CFrame = CFrame.new(camPos, part.Position)
+        if isShiftLockActive() then
+            -- با شیفت لاک از موس موو استفاده کن
+            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                local dx = (pos.X - mouse.X)
+                local dy = (pos.Y - mouse.Y)
+                mousemoverel(dx / 10, dy / 10)
+            end
+        else
+            -- بدون شیفت لاک از CFrame مستقیم استفاده کن
+            local camPos = Camera.CFrame.Position
+            Camera.CFrame = CFrame.new(camPos, part.Position)
+        end
     end
 
-    local aiming = false
     local function isTriggerInput(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
         if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
@@ -697,11 +712,10 @@ do
         if isTriggerInput(input) then aiming = false end
     end)
 
-    -- main loop
     RunService.RenderStepped:Connect(function()
         if not Aimbot.Enabled then circle.Visible = false return end
 
-        -- update FOV color
+        -- رنگ
         if RGBEnabled then
             hue = (hue + 0.005) % 1
             circle.Color = Color3.fromHSV(hue, 1, 1)
@@ -709,7 +723,6 @@ do
             circle.Color = customColor
         end
 
-        -- draw FOV
         if Aimbot.FOVEnabled then
             circle.Visible = true
             circle.Position = Vector2.new(mouse.X, mouse.Y)
@@ -718,7 +731,6 @@ do
             circle.Visible = false
         end
 
-        -- aim logic
         if aiming then
             local target = findClosest()
             if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
@@ -764,7 +776,6 @@ do
         Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end
     })
 
-    -- 🌈 رنگ
     ComTab:CreateToggle({
         Name = "RGB FOV",
         CurrentValue = false,
@@ -774,11 +785,10 @@ do
     ComTab:CreateColorPicker({
         Name = "FOV Color",
         Color = Color3.fromRGB(255,255,255),
-        Callback = function(c)
-            customColor = c
-        end
+        Callback = function(c) customColor = c end
     })
 end
+
 
 
 
