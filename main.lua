@@ -597,360 +597,208 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
--- === Aimbot (self-contained) ===
+-- === Simple Aimbot + FOV (light) ===
 do
-    if getgenv().AirHub and getgenv().AirHub.Aimbot then
-        -- اگر قبلاً لود شده باشه، کاری نکن
-    else
-        -- اجزای مورد نیاز
-        local RunService = game:GetService("RunService")
-        local UserInputService = game:GetService("UserInputService")
-        local TweenService = game:GetService("TweenService")
-        local Players = game:GetService("Players")
-        local LocalPlayer = Players.LocalPlayer
-        local Camera = workspace.CurrentCamera
-        local HttpService = game:GetService("HttpService") -- فقط در صورت نیاز برای تولید GUID (اختیاری)
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local Players = game:GetService("Players")
+    local Camera = workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
 
-        local pcall, next = pcall, next
-        local Vector2new = Vector2.new
-        local CFramenew = CFrame.new
-        local Color3fromRGB = Color3.fromRGB
-        local TweenInfonew = TweenInfo.new
-        local mousemoverel = mousemoverel or (Input and Input.MouseMove)
+    -- state
+    local Aimbot = {
+        Enabled = false,
+        FOVEnabled = true,
+        FOVRadius = 120,
+        Sensitivity = 0.35, -- 0..1, 0 = instant snap
+        LockPart = "Head",
+        TriggerKey = "MouseButton2", -- hold to aim
+    }
 
-        -- Environment
-        getgenv().AirHub = getgenv().AirHub or {}
-        getgenv().AirHub.Aimbot = getgenv().AirHub.Aimbot or {}
-        local Environment = getgenv().AirHub.Aimbot
+    -- Drawing FOV circle
+    local circle = Drawing.new("Circle")
+    circle.Visible = false
+    circle.Radius = Aimbot.FOVRadius
+    circle.Color = Color3.fromRGB(255,255,255)
+    circle.Thickness = 1
+    circle.NumSides = 64
+    circle.Filled = false
+    circle.Transparency = 0.6
 
-        Environment.Settings = Environment.Settings or {
-            Enabled = false,
-            TeamCheck = false,
-            AliveCheck = true,
-            WallCheck = false,
-            Sensitivity = 0, -- seconds for tween
-            ThirdPerson = false,
-            ThirdPersonSensitivity = 3,
-            TriggerKey = "MouseButton2",
-            Toggle = false,
-            LockPart = "Head"
-        }
+    -- helper: get all potential targets
+    local function getPlayers()
+        local out = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) and p.Character:FindFirstChildOfClass("Humanoid") then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    table.insert(out, p)
+                end
+            end
+        end
+        return out
+    end
 
-        Environment.FOVSettings = Environment.FOVSettings or {
-            Enabled = true,
-            Visible = true,
-            Amount = 90,
-            Color = Color3fromRGB(255, 255, 255),
-            LockedColor = Color3fromRGB(255, 70, 70),
-            Transparency = 0.5,
-            Sides = 60,
-            Thickness = 1,
-            Filled = false
-        }
+    -- helper: screen pos and on screen check
+    local function getScreenPos(part)
+        local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        return Vector2.new(pos.X, pos.Y), onScreen
+    end
 
-        Environment.FOVCircle = Environment.FOVCircle or Drawing.new("Circle")
-        Environment.FOVCircle.Color = Environment.FOVSettings.Color
-        Environment.FOVCircle.Visible = false
+    -- find closest to mouse within FOV
+    local function findClosest()
+        local mousePos = UserInputService:GetMouseLocation()
+        local closestDist = Aimbot.FOVRadius
+        local closestPlayer = nil
 
-        -- internal
-        local RequiredDistance = 2000
-        local Typing, Running, OriginalSensitivity = false, false, nil
-        local ServiceConnections = {}
-        local Animation = nil
-
-        local function ConvertVector(Vector)
-            return Vector2new(Vector.X, Vector.Y)
+        for _, p in ipairs(getPlayers()) do
+            local part = p.Character and p.Character:FindFirstChild(Aimbot.LockPart)
+            if part then
+                local screenPos, onScreen = getScreenPos(part)
+                if onScreen then
+                    local dist = (mousePos - screenPos).Magnitude
+                    if dist <= closestDist then
+                        closestDist = dist
+                        closestPlayer = p
+                    end
+                end
+            end
         end
 
-        local function CancelLock()
-            Environment.Locked = nil
+        return closestPlayer
+    end
+
+    local aiming = false
+
+    -- try to move mouse (smooth) or fallback to camera CFrame
+    local function aimAt(part)
+        if not part then return end
+        local screenPos, onScreen = getScreenPos(part)
+        if not onScreen then return end
+
+        local mousePos = UserInputService:GetMouseLocation()
+        local dx = (screenPos.X - mousePos.X)
+        local dy = (screenPos.Y - mousePos.Y)
+
+        -- sensitivity scale: smaller value -> faster movement
+        local sens = math.clamp(Aimbot.Sensitivity, 0, 1)
+
+        -- try mousemoverel if available (many executors provide it)
+        local moved = false
+        if mousemoverel then
             pcall(function()
-                Environment.FOVCircle.Color = Environment.FOVSettings.Color
-                if OriginalSensitivity then
-                    UserInputService.MouseDeltaSensitivity = OriginalSensitivity
-                end
-                if Animation then
-                    Animation:Cancel()
-                    Animation = nil
-                end
+                -- multiply to convert to relative movement; tweak factor if needed
+                local factor = 1
+                mousemoverel(dx * sens * factor, dy * sens * factor)
+                moved = true
             end)
         end
 
-        local function GetClosestPlayer()
-            if not Environment.Locked then
-                RequiredDistance = (Environment.FOVSettings.Enabled and Environment.FOVSettings.Amount) or 2000
-
-                for _, v in next, Players:GetPlayers() do
-                    if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(Environment.Settings.LockPart) and v.Character:FindFirstChildOfClass("Humanoid") then
-                        if Environment.Settings.TeamCheck and v.TeamColor == LocalPlayer.TeamColor then continue end
-                        if Environment.Settings.AliveCheck and v.Character:FindFirstChildOfClass("Humanoid").Health <= 0 then continue end
-                        if Environment.Settings.WallCheck then
-                            local parts = Camera:GetPartsObscuringTarget({v.Character[Environment.Settings.LockPart].Position}, v.Character:GetDescendants())
-                            if #parts > 0 then continue end
-                        end
-
-                        local Vector, OnScreen = Camera:WorldToViewportPoint(v.Character[Environment.Settings.LockPart].Position)
-                        Vector = ConvertVector(Vector)
-                        local Distance = (UserInputService:GetMouseLocation() - Vector).Magnitude
-
-                        if Distance < RequiredDistance and OnScreen then
-                            RequiredDistance = Distance
-                            Environment.Locked = v
-                        end
-                    end
-                end
+        if not moved then
+            -- fallback: rotate camera towards target smoothly
+            local root = Camera.CFrame.Position
+            local newCFrame = CFrame.new(root, part.Position)
+            if sens <= 0 then
+                Camera.CFrame = newCFrame
             else
-                local ok, lockedPart = pcall(function()
-                    return Environment.Locked and Environment.Locked.Character and Environment.Locked.Character[Environment.Settings.LockPart]
-                end)
-                if ok and lockedPart then
-                    local vec = ConvertVector(Camera:WorldToViewportPoint(lockedPart.Position))
-                    if (UserInputService:GetMouseLocation() - vec).Magnitude > RequiredDistance then
-                        CancelLock()
-                    end
-                else
-                    CancelLock()
-                end
+                -- lerp camera CFrame direction
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(root, part.Position), sens)
             end
         end
-
-        local function Load()
-            OriginalSensitivity = UserInputService.MouseDeltaSensitivity
-
-            ServiceConnections.RenderSteppedConnection = RunService.RenderStepped:Connect(function()
-                -- draw FOV
-                if Environment.FOVSettings.Enabled and Environment.Settings.Enabled then
-                    local f = Environment.FOVCircle
-                    f.Radius = Environment.FOVSettings.Amount
-                    f.Thickness = Environment.FOVSettings.Thickness
-                    f.Filled = Environment.FOVSettings.Filled
-                    f.NumSides = Environment.FOVSettings.Sides
-                    f.Color = Environment.FOVSettings.Color
-                    f.Transparency = Environment.FOVSettings.Transparency
-                    f.Visible = Environment.FOVSettings.Visible
-                    local ml = UserInputService:GetMouseLocation()
-                    f.Position = Vector2new(ml.X, ml.Y)
-                else
-                    pcall(function() Environment.FOVCircle.Visible = false end)
-                end
-
-                if Running and Environment.Settings.Enabled then
-                    GetClosestPlayer()
-
-                    if Environment.Locked then
-                        local lockedPart = Environment.Locked and Environment.Locked.Character and Environment.Locked.Character[Environment.Settings.LockPart]
-                        if Environment.Settings.ThirdPerson then
-                            if lockedPart then
-                                local Vector = Camera:WorldToViewportPoint(lockedPart.Position)
-                                if mousemoverel then
-                                    pcall(function()
-                                        mousemoverel((Vector.X - UserInputService:GetMouseLocation().X) * Environment.Settings.ThirdPersonSensitivity,
-                                                     (Vector.Y - UserInputService:GetMouseLocation().Y) * Environment.Settings.ThirdPersonSensitivity)
-                                    end)
-                                end
-                            end
-                        else
-                            if lockedPart then
-                                if Environment.Settings.Sensitivity > 0 then
-                                    if Animation then Animation:Cancel() end
-                                    Animation = TweenService:Create(Camera, TweenInfonew(Environment.Settings.Sensitivity, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFramenew(Camera.CFrame.Position, lockedPart.Position)})
-                                    Animation:Play()
-                                else
-                                    Camera.CFrame = CFramenew(Camera.CFrame.Position, lockedPart.Position)
-                                end
-                                pcall(function() UserInputService.MouseDeltaSensitivity = 0 end)
-                                pcall(function() Environment.FOVCircle.Color = Environment.FOVSettings.LockedColor end)
-                            end
-                        end
-                    end
-                end
-            end)
-
-            ServiceConnections.InputBeganConnection = UserInputService.InputBegan:Connect(function(Input)
-                if not Typing then
-                    pcall(function()
-                        local keyMatch = (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Enum.KeyCode[#Environment.Settings.TriggerKey == 1 and string.upper(Environment.Settings.TriggerKey) or Environment.Settings.TriggerKey])
-                        local mouseMatch = (Input.UserInputType == Enum.UserInputType[Environment.Settings.TriggerKey])
-                        if keyMatch or mouseMatch then
-                            if Environment.Settings.Toggle then
-                                Running = not Running
-                                if not Running then CancelLock() end
-                            else
-                                Running = true
-                            end
-                        end
-                    end)
-                end
-            end)
-
-            ServiceConnections.InputEndedConnection = UserInputService.InputEnded:Connect(function(Input)
-                if not Typing then
-                    if not Environment.Settings.Toggle then
-                        pcall(function()
-                            local keyMatch = (Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == Enum.KeyCode[#Environment.Settings.TriggerKey == 1 and string.upper(Environment.Settings.TriggerKey) or Environment.Settings.TriggerKey])
-                            local mouseMatch = (Input.UserInputType == Enum.UserInputType[Environment.Settings.TriggerKey])
-                            if keyMatch or mouseMatch then
-                                Running = false
-                                CancelLock()
-                            end
-                        end)
-                    end
-                end
-            end)
-
-            ServiceConnections.TypingStartedConnection = UserInputService.TextBoxFocused:Connect(function() Typing = true end)
-            ServiceConnections.TypingEndedConnection = UserInputService.TextBoxFocusReleased:Connect(function() Typing = false end)
-        end
-
-        -- Functions
-        Environment.Functions = Environment.Functions or {}
-
-        function Environment.Functions:Exit()
-            for _, v in pairs(ServiceConnections) do
-                if v and v.Disconnect then
-                    v:Disconnect()
-                elseif v and v.Connected then
-                    pcall(function() v:Disconnect() end)
-                end
-            end
-            pcall(function() Environment.FOVCircle:Remove() end)
-            getgenv().AirHub.Aimbot = nil
-        end
-
-        function Environment.Functions:Restart()
-            for _, v in pairs(ServiceConnections) do
-                if v and v.Disconnect then
-                    v:Disconnect()
-                elseif v and v.Connected then
-                    pcall(function() v:Disconnect() end)
-                end
-            end
-            ServiceConnections = {}
-            Load()
-        end
-
-        function Environment.Functions:ResetSettings()
-            Environment.Settings = {
-                Enabled = false,
-                TeamCheck = false,
-                AliveCheck = true,
-                WallCheck = false,
-                Sensitivity = 0,
-                ThirdPerson = false,
-                ThirdPersonSensitivity = 3,
-                TriggerKey = "MouseButton2",
-                Toggle = false,
-                LockPart = "Head"
-            }
-
-            Environment.FOVSettings = {
-                Enabled = true,
-                Visible = true,
-                Amount = 90,
-                Color = Color3fromRGB(255,255,255),
-                LockedColor = Color3fromRGB(255,70,70),
-                Transparency = 0.5,
-                Sides = 60,
-                Thickness = 1,
-                Filled = false
-            }
-        end
-
-        -- Boot
-        Load()
     end
 
-    -- === UI for Combat Tab ===
-    local AimbotEnv = getgenv().AirHub and getgenv().AirHub.Aimbot
-    if not AimbotEnv then
-        ComTab:CreateParagraph({Title = "Aimbot", Content = "Failed to initialize Aimbot environment."})
-        return
-    end
+    -- RenderStepped loop
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        -- draw fov circle at mouse
+        if Aimbot.FOVEnabled and Aimbot.Enabled then
+            local m = UserInputService:GetMouseLocation()
+            circle.Visible = true
+            circle.Position = Vector2.new(m.X, m.Y)
+            circle.Radius = Aimbot.FOVRadius
+        else
+            circle.Visible = false
+        end
 
-    -- Main Toggle
+        -- if user is holding trigger and enabled, find and aim
+        if Aimbot.Enabled and aiming then
+            local target = findClosest()
+            if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
+                aimAt(target.Character[Aimbot.LockPart])
+            end
+        end
+    end)
+
+    -- input events for hold trigger
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        -- compare input type with configured trigger
+        -- support MouseButton1/2 and Keyboard keys like E
+        if input.UserInputType == Enum.UserInputType[ Aimbot.TriggerKey ] or (input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKey == "MouseButton1") or (input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKey == "MouseButton2") then
+            aiming = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType[ Aimbot.TriggerKey ] or (input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKey == "MouseButton1") or (input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKey == "MouseButton2") then
+            aiming = false
+        end
+    end)
+
+    -- ===== UI in Combat tab =====
     ComTab:CreateToggle({
-        Name = "Enable Aimbot",
-        CurrentValue = AimbotEnv.Settings.Enabled,
-        Flag = "AimbotEnabled",
-        Callback = function(val) AimbotEnv.Settings.Enabled = val end
+        Name = "Aimbot (hold trigger)",
+        CurrentValue = false,
+        Flag = "SimpleAimbotEnable",
+        Callback = function(val) Aimbot.Enabled = val end,
     })
 
-    -- FOV controls
     ComTab:CreateToggle({
         Name = "Show FOV",
-        CurrentValue = AimbotEnv.FOVSettings.Visible,
-        Flag = "AimbotFOVVisible",
-        Callback = function(v) AimbotEnv.FOVSettings.Visible = v end
+        CurrentValue = true,
+        Flag = "SimpleAimbotFOVShow",
+        Callback = function(v) Aimbot.FOVEnabled = v end,
     })
 
     ComTab:CreateSlider({
         Name = "FOV Radius",
-        Range = {10, 800},
+        Range = {30, 600},
         Increment = 5,
         Suffix = "px",
-        CurrentValue = AimbotEnv.FOVSettings.Amount,
-        Flag = "AimbotFOVRadius",
-        Callback = function(val) AimbotEnv.FOVSettings.Amount = val end
+        CurrentValue = Aimbot.FOVRadius,
+        Flag = "SimpleAimbotFOVRadius",
+        Callback = function(v) Aimbot.FOVRadius = v end,
     })
 
-    ComTab:CreateColorPicker({
-        Name = "FOV Color",
-        Default = {AimbotEnv.FOVSettings.Color.R*255, AimbotEnv.FOVSettings.Color.G*255, AimbotEnv.FOVSettings.Color.B*255},
-        Flag = "AimbotFOVColor",
-        Callback = function(col) AimbotEnv.FOVSettings.Color = Color3.fromRGB(col[1], col[2], col[3]) end
+    ComTab:CreateSlider({
+        Name = "Sensitivity",
+        Range = {0, 1},
+        Increment = 0.05,
+        Suffix = "",
+        CurrentValue = Aimbot.Sensitivity,
+        Flag = "SimpleAimbotSensitivity",
+        Callback = function(v) Aimbot.Sensitivity = v end,
     })
-
-    ComTab:CreateToggle({
-        Name = "Fill FOV",
-        CurrentValue = AimbotEnv.FOVSettings.Filled,
-        Flag = "AimbotFOVFilled",
-        Callback = function(v) AimbotEnv.FOVSettings.Filled = v end
-    })
-
-    -- Target Options
-    ComTab:CreateToggle({ Name = "Team Check", CurrentValue = AimbotEnv.Settings.TeamCheck, Flag = "AimbotTeamCheck", Callback = function(v) AimbotEnv.Settings.TeamCheck = v end })
-    ComTab:CreateToggle({ Name = "Alive Check", CurrentValue = AimbotEnv.Settings.AliveCheck, Flag = "AimbotAliveCheck", Callback = function(v) AimbotEnv.Settings.AliveCheck = v end })
-    ComTab:CreateToggle({ Name = "Wall Check", CurrentValue = AimbotEnv.Settings.WallCheck, Flag = "AimbotWallCheck", Callback = function(v) AimbotEnv.Settings.WallCheck = v end })
 
     ComTab:CreateDropdown({
         Name = "Lock Part",
         Options = {"Head","UpperTorso","HumanoidRootPart"},
-        CurrentOption = {AimbotEnv.Settings.LockPart},
+        CurrentOption = {Aimbot.LockPart},
         MultipleOptions = false,
-        Flag = "AimbotLockPart",
-        Callback = function(opt) AimbotEnv.Settings.LockPart = opt[1] end
+        Flag = "SimpleAimbotLockPart",
+        Callback = function(opt) Aimbot.LockPart = opt[1] end,
     })
 
-    -- Sensitivity
-    ComTab:CreateSlider({
-        Name = "Sensitivity (sec)",
-        Range = {0,1},
-        Increment = 0.01,
-        Suffix = "s",
-        CurrentValue = AimbotEnv.Settings.Sensitivity,
-        Flag = "AimbotSensitivity",
-        Callback = function(v) AimbotEnv.Settings.Sensitivity = v end
-    })
-
-    -- Third person
-    ComTab:CreateToggle({ Name = "Third Person Mode", CurrentValue = AimbotEnv.Settings.ThirdPerson, Flag = "Aimbot3P", Callback = function(v) AimbotEnv.Settings.ThirdPerson = v end })
-    ComTab:CreateSlider({ Name = "3P Sensitivity", Range = {0.1,10}, Increment = 0.1, Suffix = "", CurrentValue = AimbotEnv.Settings.ThirdPersonSensitivity, Flag = "Aimbot3PSens", Callback = function(v) AimbotEnv.Settings.ThirdPersonSensitivity = v end })
-
-    -- Trigger key dropdown (basic)
     ComTab:CreateDropdown({
         Name = "Trigger Key",
-        Options = {"MouseButton2","MouseButton1","LeftShift","E"},
-        CurrentOption = {AimbotEnv.Settings.TriggerKey},
+        Options = {"MouseButton2","MouseButton1","E"},
+        CurrentOption = {Aimbot.TriggerKey},
         MultipleOptions = false,
-        Flag = "AimbotTrigger",
-        Callback = function(opt) AimbotEnv.Settings.TriggerKey = opt[1] end
+        Flag = "SimpleAimbotTrigger",
+        Callback = function(opt) Aimbot.TriggerKey = opt[1] end,
     })
 
-    ComTab:CreateToggle({ Name = "Toggle Mode (press to toggle)", CurrentValue = AimbotEnv.Settings.Toggle, Flag = "AimbotToggle", Callback = function(v) AimbotEnv.Settings.Toggle = v end })
-
-    -- Utility Buttons
-    ComTab:CreateButton({ Name = "Reset Settings", Callback = function() AimbotEnv.Functions:ResetSettings() print("Aimbot settings reset.") end })
-    ComTab:CreateButton({ Name = "Restart Aimbot", Callback = function() AimbotEnv.Functions:Restart() print("Aimbot restarted.") end })
-    ComTab:CreateButton({ Name = "Exit Aimbot", Callback = function() AimbotEnv.Functions:Exit() print("Aimbot exited.") end })
+    -- cleanup on exit (optional)
+    -- return a handle if you want to stop later: e.g., getgenv().SimpleAimbotHandle = {Disconnect = function() conn:Disconnect(); circle:Remove() end}
 end
+
 
