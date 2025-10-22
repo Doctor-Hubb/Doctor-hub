@@ -41,7 +41,6 @@ local PlayerTab = Window:CreateTab("Player", 4483362458)
 local ComTab = Window:CreateTab("Combat", 4483362458) 
 local TelTab = Window:CreateTab("Teleport", 4483362458) 
 local FarmTab = Window:CreateTab("Farm", 4483362458) 
-local CommTab = Window:CreateTab("Combat", 4483362458) 
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -577,4 +576,219 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- === Aimbot UI در تب Combat ===
+local ComTab = Window:CreateTab("Combat", 4483362458) -- فرض بر اینه ComTab همین متغیره
+
+-- تلاش برای گرفتن محیط Aimbot (اگر وجود نداره، سعی می‌کنیم لودش کنیم)
+local function ensureAimbotLoaded()
+    if getgenv().AirHub and getgenv().AirHub.Aimbot then
+        return getgenv().AirHub.Aimbot
+    end
+
+    -- تلاش برای لود از گیت‌هاب (این خط را فقط در executor هایی اجرا کن که HttpGet دارند)
+    local ok, err = pcall(function()
+        -- لینک‌های عمومی Aimbot ممکنه تغییر کنه؛ اگر خودت کد Aimbot رو داری، می‌تونی مستقیم loadstring(...) آن را اینجا قرار دهی
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Exunys/Aimbot-V2/main/Aimbot%20V2"))()
+    end)
+
+    if not ok then
+        warn("Aimbot load failed:", err)
+        return nil
+    end
+
+    return getgenv().AirHub and getgenv().AirHub.Aimbot or nil
+end
+
+local AimbotEnv = ensureAimbotLoaded()
+
+if not AimbotEnv then
+    ComTab:CreateParagraph({Title = "Aimbot", Content = "Aimbot module not found or failed to load. Check HttpGet permissions or provide the module."})
+else
+    -- Toggle اصلی برای فعال/غیرفعال کردن
+    ComTab:CreateToggle({
+        Name = "Enable Aimbot",
+        CurrentValue = AimbotEnv.Settings.Enabled,
+        Flag = "AimbotEnabled",
+        Callback = function(val)
+            AimbotEnv.Settings.Enabled = val
+        end,
+    })
+
+    -- FOV نمایش/مخفی و رنگ
+    ComTab:CreateToggle({
+        Name = "Show FOV Circle",
+        CurrentValue = AimbotEnv.FOVSettings.Visible,
+        Flag = "AimbotFOVVisible",
+        Callback = function(val)
+            AimbotEnv.FOVSettings.Visible = val
+        end,
+    })
+
+    ComTab:CreateSlider({
+        Name = "FOV Radius",
+        Range = {10, 1000},
+        Increment = 5,
+        Suffix = "px",
+        CurrentValue = AimbotEnv.FOVSettings.Amount,
+        Flag = "AimbotFOVRadius",
+        Callback = function(val)
+            AimbotEnv.FOVSettings.Amount = val
+        end,
+    })
+
+    ComTab:CreateColorPicker({
+        Name = "FOV Color",
+        Default = {AimbotEnv.FOVSettings.Color.R * 255, AimbotEnv.FOVSettings.Color.G * 255, AimbotEnv.FOVSettings.Color.B * 255},
+        Flag = "AimbotFOVColor",
+        Callback = function(color)
+            AimbotEnv.FOVSettings.Color = Color3.fromRGB(color[1], color[2], color[3])
+        end,
+    })
+
+    ComTab:CreateToggle({
+        Name = "Fill FOV",
+        CurrentValue = AimbotEnv.FOVSettings.Filled,
+        Flag = "AimbotFOVFilled",
+        Callback = function(val)
+            AimbotEnv.FOVSettings.Filled = val
+        end,
+    })
+
+    -- Targeting options
+    ComTab:CreateToggle({
+        Name = "Team Check",
+        CurrentValue = AimbotEnv.Settings.TeamCheck,
+        Flag = "AimbotTeamCheck",
+        Callback = function(val) AimbotEnv.Settings.TeamCheck = val end,
+    })
+
+    ComTab:CreateToggle({
+        Name = "Alive Check",
+        CurrentValue = AimbotEnv.Settings.AliveCheck,
+        Flag = "AimbotAliveCheck",
+        Callback = function(val) AimbotEnv.Settings.AliveCheck = val end,
+    })
+
+    ComTab:CreateToggle({
+        Name = "Wall Check",
+        CurrentValue = AimbotEnv.Settings.WallCheck,
+        Flag = "AimbotWallCheck",
+        Callback = function(val) AimbotEnv.Settings.WallCheck = val end,
+    })
+
+    ComTab:CreateDropdown({
+        Name = "Lock Part",
+        Options = {"Head", "UpperTorso", "HumanoidRootPart"},
+        CurrentOption = {AimbotEnv.Settings.LockPart or "Head"},
+        MultipleOptions = false,
+        Flag = "AimbotLockPart",
+        Callback = function(option)
+            AimbotEnv.Settings.LockPart = option[1]
+        end,
+    })
+
+    -- Sensitivity (animation time)
+    ComTab:CreateSlider({
+        Name = "Sensitivity (lock speed)",
+        Range = {0, 1},
+        Increment = 0.01,
+        Suffix = "s",
+        CurrentValue = AimbotEnv.Settings.Sensitivity,
+        Flag = "AimbotSensitivity",
+        Callback = function(val)
+            AimbotEnv.Settings.Sensitivity = val
+        end,
+    })
+
+    -- ThirdPerson toggle + sensitivity
+    ComTab:CreateToggle({
+        Name = "Third Person Mode",
+        CurrentValue = AimbotEnv.Settings.ThirdPerson,
+        Flag = "AimbotThirdPerson",
+        Callback = function(val)
+            AimbotEnv.Settings.ThirdPerson = val
+        end,
+    })
+
+    ComTab:CreateSlider({
+        Name = "Third Person Sensitivity",
+        Range = {0.1, 10},
+        Increment = 0.1,
+        Suffix = "",
+        CurrentValue = AimbotEnv.Settings.ThirdPersonSensitivity,
+        Flag = "Aimbot3PSensitivity",
+        Callback = function(val)
+            AimbotEnv.Settings.ThirdPersonSensitivity = val
+        end,
+    })
+
+    -- Trigger key (simple UI; Rayfield ممکنه امکان تغییر Keybind داشته باشه)
+    ComTab:CreateDropdown({
+        Name = "Trigger Key",
+        Options = {"MouseButton2","MouseButton1","LeftShift","E"},
+        CurrentOption = {AimbotEnv.Settings.TriggerKey},
+        MultipleOptions = false,
+        Flag = "AimbotTriggerKey",
+        Callback = function(opt)
+            AimbotEnv.Settings.TriggerKey = opt[1]
+        end,
+    })
+
+    -- Toggle mode: hold vs toggle
+    ComTab:CreateToggle({
+        Name = "Toggle Instead of Hold",
+        CurrentValue = AimbotEnv.Settings.Toggle,
+        Flag = "AimbotToggleMode",
+        Callback = function(val)
+            AimbotEnv.Settings.Toggle = val
+        end,
+    })
+
+    -- Utility buttons
+    ComTab:CreateButton({
+        Name = "Reset Aimbot Settings",
+        Callback = function()
+            AimbotEnv.Functions.ResetSettings()
+            -- Update UI values if needed (simple approach: reload the tab or inform user to reopen)
+            print("Aimbot settings reset.")
+        end,
+    })
+
+    ComTab:CreateButton({
+        Name = "Restart Aimbot",
+        Callback = function()
+            AimbotEnv.Functions:Restart()
+            print("Aimbot restarted.")
+        end,
+    })
+
+    ComTab:CreateButton({
+        Name = "Stop & Exit Aimbot",
+        Callback = function()
+            AimbotEnv.Functions:Exit()
+            print("Aimbot exited.")
+        end,
+    })
+end
 
