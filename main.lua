@@ -596,138 +596,200 @@ local Toggle = FarmTab:CreateToggle({
 
 
 
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
+-- === Simple Aimbot + FOV (fixed mouse source & FOV slider) ===
+do
+    local Players = game:GetService("Players")
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Camera = workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
 
--- ایجاد تب
-local AimbotTab = ComTab -- تب Combat شما
--- اگر نمی‌خوای به تب اضافه بشه و می‌خوای جدا باشه، بنویس:
--- local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
+    -- get a Mouse object (more consistent across camera modes)
+    local mouse = LocalPlayer:GetMouse()
 
--- تنظیمات
-local Aimbot = {
-    Enabled = false,
-    FOVEnabled = true,
-    FOVRadius = 100,
-    LockPart = "Head",
-    TeamCheck = false,
-    TriggerKey = Enum.UserInputType.MouseButton2 -- کلیک راست
-}
+    -- state
+    local Aimbot = {
+        Enabled = false,
+        FOVEnabled = true,
+        FOVRadius = 120,
+        LockPart = "Head",
+        TeamCheck = false,
+        TriggerKeyName = "MouseButton2", -- string for UI/dropdown compatibility
+        -- internal computed trigger enum test happens in handlers below
+    }
 
--- دایره FOV
-local circle = Drawing.new("Circle")
-circle.Thickness = 1
-circle.NumSides = 64
-circle.Radius = Aimbot.FOVRadius
-circle.Filled = false
-circle.Color = Color3.fromRGB(255, 255, 255)
-circle.Visible = false
+    -- Drawing FOV circle
+    local circle = Drawing.new("Circle")
+    circle.Visible = false
+    circle.Radius = Aimbot.FOVRadius
+    circle.Color = Color3.fromRGB(255,255,255)
+    circle.Thickness = 1
+    circle.NumSides = 64
+    circle.Filled = false
+    circle.Transparency = 0.6
 
--- تابع برای پیدا کردن نزدیک‌ترین بازیکن در محدوده FOV
-local function getClosest()
-    local closest, closestDistance = nil, Aimbot.FOVRadius
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Aimbot.LockPart) then
-            if Aimbot.TeamCheck and player.Team == LocalPlayer.Team then
-                continue
-            end
-            local part = player.Character[Aimbot.LockPart]
-            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if onScreen then
-                local dist = (Vector2.new(pos.X, pos.Y) - UserInputService:GetMouseLocation()).Magnitude
-                if dist < closestDistance then
-                    closestDistance = dist
-                    closest = player
+    -- helper: get all potential targets
+    local function getPlayers()
+        local out = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Aimbot.LockPart) and p.Character:FindFirstChildOfClass("Humanoid") then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    if Aimbot.TeamCheck then
+                        if p.Team ~= LocalPlayer.Team then
+                            table.insert(out, p)
+                        end
+                    else
+                        table.insert(out, p)
+                    end
                 end
             end
         end
-    end
-    return closest
-end
-
--- تابع هدف‌گیری مستقیم (بدون سنسیتیویتی)
-local function aimAt(part)
-    if not part then return end
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, part.Position)
-end
-
--- وضعیت فعال بودن
-local aiming = false
-
--- حلقه اصلی
-RunService.RenderStepped:Connect(function()
-    if not Aimbot.Enabled then 
-        circle.Visible = false
-        return 
+        return out
     end
 
-    -- به‌روزرسانی FOV
-    local mousePos = UserInputService:GetMouseLocation()
-    if Aimbot.FOVEnabled then
-        circle.Visible = true
-        circle.Position = Vector2.new(mousePos.X, mousePos.Y)
-        circle.Radius = Aimbot.FOVRadius
-    else
-        circle.Visible = false
+    -- helper: screen pos and on screen check
+    local function getScreenPos(part)
+        local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        return Vector2.new(pos.X, pos.Y), onScreen
     end
 
-    -- قفل روی هدف وقتی کلیک راست نگه داشته میشه
-    if aiming then
-        local target = getClosest()
-        if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
-            aimAt(target.Character[Aimbot.LockPart])
+    -- find closest to mouse within FOV
+    local function findClosest()
+        -- use mouse.X/Y (more consistent than UserInputService:GetMouseLocation in some camera modes)
+        local mousePos = Vector2.new(mouse.X, mouse.Y)
+        local closestDist = Aimbot.FOVRadius
+        local closestPlayer = nil
+
+        for _, p in ipairs(getPlayers()) do
+            local part = p.Character and p.Character:FindFirstChild(Aimbot.LockPart)
+            if part then
+                local screenPos, onScreen = getScreenPos(part)
+                if onScreen then
+                    local dist = (mousePos - screenPos).Magnitude
+                    if dist <= closestDist then
+                        closestDist = dist
+                        closestPlayer = p
+                    end
+                end
+            end
         end
+
+        return closestPlayer
     end
-end)
 
--- شناسایی نگه‌داشتن کلیک راست
-UserInputService.InputBegan:Connect(function(input)
-    if input.UserInputType == Aimbot.TriggerKey then
-        aiming = true
+    local aiming = false
+
+    -- direct aim (no sensitivity) — sets camera to look at target
+    local function aimAt(part)
+        if not part then return end
+        local camPos = Camera.CFrame.Position
+        -- set camera to look at target position (works in Classic/Follow/ShiftLock)
+        Camera.CFrame = CFrame.new(camPos, part.Position)
     end
-end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Aimbot.TriggerKey then
-        aiming = false
+    -- main loop
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if not Aimbot.Enabled then
+            circle.Visible = false
+            return
+        end
+
+        -- draw fov circle at mouse
+        if Aimbot.FOVEnabled then
+            local mx, my = mouse.X or UserInputService:GetMouseLocation().X, mouse.Y or UserInputService:GetMouseLocation().Y
+            circle.Visible = true
+            circle.Position = Vector2.new(mx, my)
+            circle.Radius = Aimbot.FOVRadius
+        else
+            circle.Visible = false
+        end
+
+        if Aimbot.Enabled and aiming then
+            local target = findClosest()
+            if target and target.Character and target.Character:FindFirstChild(Aimbot.LockPart) then
+                aimAt(target.Character[Aimbot.LockPart])
+            end
+        end
+    end)
+
+    -- Helper: matches various input types for trigger
+    local function isTriggerInput(input)
+        -- mouse buttons: Input.UserInputType is MouseButton1/2 etc.
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and Aimbot.TriggerKeyName == "MouseButton1" then return true end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.TriggerKeyName == "MouseButton2" then return true end
+        -- keyboard keys (if user selects "E" for example)
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local keyName = tostring(input.KeyCode):gsub("Enum.KeyCode.", "")
+            if keyName == Aimbot.TriggerKeyName then return true end
+        end
+        return false
     end
-end)
 
--- افزودن به تب برای کنترل
-AimbotTab:CreateToggle({
-    Name = "Aimbot (Simple Lock)",
-    CurrentValue = false,
-    Flag = "SimpleAimbot",
-    Callback = function(value)
-        Aimbot.Enabled = value
-    end,
-})
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if isTriggerInput(input) then
+            aiming = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if isTriggerInput(input) then
+            aiming = false
+        end
+    end)
 
-AimbotTab:CreateSlider({
-    Name = "FOV Radius",
-    Range = {50, 300},
-    Increment = 10,
-    Suffix = "px",
-    CurrentValue = Aimbot.FOVRadius,
-    Flag = "FOVRadius",
-    Callback = function(value)
-        Aimbot.FOVRadius = value
-    end,
-})
+    -- ===== UI in Combat tab =====
+    ComTab:CreateToggle({
+        Name = "Aimbot (hold trigger)",
+        CurrentValue = false,
+        Flag = "SimpleAimbotEnable",
+        Callback = function(val) Aimbot.Enabled = val end,
+    })
 
-AimbotTab:CreateDropdown({
-    Name = "Lock Part",
-    Options = {"Head", "UpperTorso", "HumanoidRootPart"},
-    CurrentOption = {"Head"},
-    MultipleOptions = false,
-    Flag = "LockPart",
-    Callback = function(opt)
-        Aimbot.LockPart = opt[1]
-    end,
-})
+    ComTab:CreateToggle({
+        Name = "Show FOV",
+        CurrentValue = true,
+        Flag = "SimpleAimbotFOVShow",
+        Callback = function(v) Aimbot.FOVEnabled = v end,
+    })
+
+    ComTab:CreateSlider({
+        Name = "FOV Radius",
+        Range = {30, 800},
+        Increment = 5,
+        Suffix = "px",
+        CurrentValue = Aimbot.FOVRadius,
+        Flag = "SimpleAimbotFOVRadius",
+        Callback = function(v) Aimbot.FOVRadius = v end,
+    })
+
+    ComTab:CreateDropdown({
+        Name = "Lock Part",
+        Options = {"Head","UpperTorso","HumanoidRootPart"},
+        CurrentOption = {Aimbot.LockPart},
+        MultipleOptions = false,
+        Flag = "SimpleAimbotLockPart",
+        Callback = function(opt) Aimbot.LockPart = opt[1] end,
+    })
+
+    ComTab:CreateDropdown({
+        Name = "Trigger Key",
+        Options = {"MouseButton2","MouseButton1","E"},
+        CurrentOption = {Aimbot.TriggerKeyName},
+        MultipleOptions = false,
+        Flag = "SimpleAimbotTrigger",
+        Callback = function(opt) Aimbot.TriggerKeyName = opt[1] end,
+    })
+
+    -- cleanup handle (optional)
+    getgenv().SimpleAimbotHandle = {
+        Disconnect = function()
+            if conn and conn.Connected then conn:Disconnect() end
+            pcall(function() circle:Remove() end)
+        end
+    }
+end
 
 
 
